@@ -162,37 +162,54 @@ object AppUpdater {
 
             button.isEnabled = false
             target.delete()
-            try {
-                val file = Get<File>(absoluteUrl(model.url)) {
-                    setDownloadDir(dir)
-                    setDownloadFileName(fileName)
-                    addDownloadListener(object : ProgressListener() {
-                        override fun onProgress(p: Progress) {
-                            activity.runOnUiThread {
-                                button.text = if (p.finish) "校验中" else "下载中 ${p.progress()}"
-                            }
-                        }
-                    })
-                }.await()
 
-                if (!file.isFile || file.length() <= 0L) {
-                    throw IllegalStateException("下载文件为空")
+            // 主线路：自有服务器；备用线路：GitHub Release（主线路失败时自动切换）
+            val sources = listOf(model.url, model.backupUrl)
+                .filter { it.isNotBlank() }
+                .map { absoluteUrl(it) }
+                .distinct()
+
+            var lastError: Exception? = null
+            for ((index, source) in sources.withIndex()) {
+                try {
+                    if (index > 0) {
+                        activity.runOnUiThread { button.text = "切换备用线路…" }
+                    }
+                    val file = Get<File>(source) {
+                        setDownloadDir(dir)
+                        setDownloadFileName(fileName)
+                        addDownloadListener(object : ProgressListener() {
+                            override fun onProgress(p: Progress) {
+                                activity.runOnUiThread {
+                                    button.text = if (p.finish) "校验中" else "下载中 ${p.progress()}"
+                                }
+                            }
+                        })
+                    }.await()
+
+                    if (!file.isFile || file.length() <= 0L) {
+                        throw IllegalStateException("下载文件为空")
+                    }
+                    if (model.md5.isNotBlank() && !md5(file).equals(model.md5, ignoreCase = true)) {
+                        file.delete()
+                        throw IllegalStateException("安装包校验失败（MD5 不一致）")
+                    }
+                    if (!verifySignature(activity, file)) {
+                        file.delete()
+                        throw IllegalStateException("安装包签名与当前版本不一致")
+                    }
+                    button.text = "安装中"
+                    install(activity, file, model)
+                    return@launch
+                } catch (e: Exception) {
+                    lastError = e
+                    target.delete()
                 }
-                if (model.md5.isNotBlank() && !md5(file).equals(model.md5, ignoreCase = true)) {
-                    file.delete()
-                    throw IllegalStateException("安装包校验失败（MD5 不一致）")
-                }
-                if (!verifySignature(activity, file)) {
-                    file.delete()
-                    throw IllegalStateException("安装包签名与当前版本不一致")
-                }
-                button.text = "安装中"
-                install(activity, file, model)
-            } catch (e: Exception) {
-                button.isEnabled = true
-                button.text = "重试"
-                toast("更新失败：${e.message ?: "未知错误"}")
             }
+
+            button.isEnabled = true
+            button.text = "重试"
+            toast("更新失败：${lastError?.message ?: "未知错误"}")
         }
     }
 

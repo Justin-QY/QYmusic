@@ -22,4 +22,6 @@ data class UpdateModel(
   val force: Boolean = false,
   /** 服务端允许使用的最低版本号；低于它必须更新才能继续使用 */
   val minVersionCode: Long = 0,
+  /** 备用下载地址（主线路失败时使用，例如 GitHub Release） */
+  val backupUrl: String = "",
 )

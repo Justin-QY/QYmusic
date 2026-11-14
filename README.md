@@ -72,7 +72,10 @@ keyPassword=******
 
 ## 下载
 
-正式版安装包见 [GitHub Releases](https://github.com/Justin-QY/QYmusic/releases)。
+- **主线路**：`http://168.110.9.35:8002/app/qy-music-1.0.1.apk`
+- **备用线路**：[GitHub Releases](https://github.com/Justin-QY/QYmusic/releases)
+
+客户端内置更新时优先使用主线路，失败会自动切换到 GitHub Release 备用地址。
 
 ---
 

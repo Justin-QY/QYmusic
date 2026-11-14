@@ -572,7 +572,7 @@ void checkAppSignature(JNIEnv *env, jobject context) {
 }
 
 extern "C" JNIEXPORT jstring JNICALL
-Java_xyz_jdynb_music_QYMusicApplication_getSign(
+Java_com_qymusic_app_QYMusicApplication_getSign(
         JNIEnv *env,
         jobject thiz,
         jstring timestamp,
