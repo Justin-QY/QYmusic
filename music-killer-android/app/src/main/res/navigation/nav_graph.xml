@@ -149,6 +149,12 @@
     </fragment>
 
     <fragment
+        android:id="@+id/cloudFragment"
+        android:name="com.qymusic.app.ui.fragment.cloud.CloudFragment"
+        android:label="云端"
+        tools:layout="@layout/fragment_cloud" />
+
+    <fragment
         android:id="@+id/settingFragment"
         android:name="com.qymusic.app.ui.fragment.setting.SettingFragment"
         android:label="设置"

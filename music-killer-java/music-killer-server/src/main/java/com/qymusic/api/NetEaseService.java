@@ -6,6 +6,7 @@ import retrofit2.http.Field;
 import retrofit2.http.FieldMap;
 import retrofit2.http.FormUrlEncoded;
 import retrofit2.http.GET;
+import retrofit2.http.Header;
 import retrofit2.http.Headers;
 import retrofit2.http.POST;
 import retrofit2.http.Path;
@@ -149,4 +150,38 @@ public interface NetEaseService {
                    @Query("lv") int lv,
                    @Query("kv") int kv,
                    @Query("tv") int tv);
+
+    // ------------------------------------------------------------------ 登录用户（Cookie）
+
+    /**
+     * 当前登录账号信息（需要 Cookie 中的 MUSIC_U）
+     */
+    @GET("nuser/account/get")
+    @Headers({REFERER_HEADER, UA_HEADER})
+    JsonNode account(@Header("Cookie") String cookie);
+
+    /**
+     * 用户收藏的歌单
+     */
+    @GET("user/playlist")
+    @Headers({REFERER_HEADER, UA_HEADER})
+    JsonNode userPlaylists(@Header("Cookie") String cookie,
+                           @Query("uid") long uid,
+                           @Query("limit") int limit,
+                           @Query("offset") int offset);
+
+    /**
+     * 用户收藏的歌手
+     */
+    @GET("artist/sublist")
+    @Headers({REFERER_HEADER, UA_HEADER})
+    JsonNode artistSublist(@Header("Cookie") String cookie);
+
+    /**
+     * 我喜欢的音乐 ID 列表
+     */
+    @FormUrlEncoded
+    @POST("song/like/get")
+    @Headers({REFERER_HEADER, UA_HEADER})
+    JsonNode likedIds(@Header("Cookie") String cookie, @Field("userid") long uid);
 }

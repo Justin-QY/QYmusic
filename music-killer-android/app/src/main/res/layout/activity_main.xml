@@ -29,16 +29,28 @@
             app:defaultNavHost="true"
             app:navGraph="@navigation/nav_graph" />
 
+        <com.google.android.material.bottomnavigation.BottomNavigationView
+            android:id="@+id/bottom_nav"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_gravity="bottom"
+            android:background="?attr/colorSurface"
+            android:elevation="0dp"
+            app:itemIconTint="?attr/colorOnSurfaceVariant"
+            app:itemTextColor="?attr/colorOnSurfaceVariant"
+            app:labelVisibilityMode="labeled"
+            app:menu="@menu/menu_bottom_nav" />
+
         <LinearLayout
             android:id="@+id/bottom_bar"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="?attr/colorSurface"
+            android:background="@android:color/transparent"
             android:orientation="vertical"
             app:behavior_draggable="true"
             app:behavior_draggableOnNestedScroll="true"
             app:behavior_hideable="false"
-            app:behavior_peekHeight="68dp"
+            app:behavior_peekHeight="124dp"
             app:layout_behavior="com.google.android.material.bottomsheet.BottomSheetBehavior">
 
             <androidx.constraintlayout.widget.ConstraintLayout
@@ -46,7 +58,8 @@
                 hit="@{true}"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:animateLayoutChanges="true">
+                android:animateLayoutChanges="true"
+                android:background="?attr/colorSurface">
 
                 <com.google.android.material.divider.MaterialDivider
                     android:layout_width="0dp"
@@ -124,6 +137,7 @@
                 android:translationZ="-10dp"
                 android:alpha="0"
                 android:id="@+id/main_player"
+                android:background="?attr/colorSurface"
                 android:layout_width="match_parent"
                 android:layout_height="0dp"
                 android:layout_weight="1">

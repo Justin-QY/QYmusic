@@ -123,6 +123,14 @@ object Api {
   const val LX_DELETE = "/lx/delete"
 
   /**
+   * 网易云账号（云端模块）
+   */
+  const val NETEASE_ACCOUNT = "/netease/user/account"
+  const val NETEASE_PLAYLISTS = "/netease/user/playlists"
+  const val NETEASE_ARTISTS = "/netease/user/artists"
+  const val NETEASE_LIKED = "/netease/user/liked"
+
+  /**
    * 按当前曲库音源拼接接口路径。
    *
    * 设置页可以在「网易云 / 酷我」之间切换：

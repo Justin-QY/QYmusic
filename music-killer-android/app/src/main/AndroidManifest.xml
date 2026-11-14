@@ -45,6 +45,10 @@
 
         <activity android:name=".ui.activity.CrashActivity" />
 
+        <activity
+            android:name=".ui.activity.NeteaseLoginActivity"
+            android:exported="false" />
+
         <service
             android:name=".service.MusicService"
             android:exported="true"

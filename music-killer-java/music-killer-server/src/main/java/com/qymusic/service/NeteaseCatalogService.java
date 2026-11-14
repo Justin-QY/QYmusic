@@ -541,7 +541,7 @@ public class NeteaseCatalogService {
 
     // ------------------------------------------------------------------ 数据转换
 
-    private List<Music> songsByIds(List<Long> ids) {
+    public List<Music> songsByIds(List<Long> ids) {
         if (ids == null || ids.isEmpty()) {
             return Collections.emptyList();
         }

@@ -80,6 +80,37 @@ object SPConfig {
     THEME_MODE put mode
   }
 
+  // ------------------------------------------------------------------ 网易云账号
+
+  const val NETEASE_COOKIE = "netease_cookie"
+  const val NETEASE_UID = "netease_uid"
+  const val NETEASE_NICKNAME = "netease_nickname"
+  const val NETEASE_AVATAR = "netease_avatar"
+
+  fun neteaseCookie(): String = NETEASE_COOKIE.getRequired("")
+
+  fun neteaseUid(): Long = NETEASE_UID.getRequired(0L)
+
+  fun neteaseNickname(): String = NETEASE_NICKNAME.getRequired("")
+
+  fun neteaseAvatar(): String = NETEASE_AVATAR.getRequired("")
+
+  fun isNeteaseLoggedIn(): Boolean = neteaseCookie().isNotBlank() && neteaseUid() > 0
+
+  fun saveNeteaseLogin(cookie: String, uid: Long, nickname: String, avatar: String) {
+    NETEASE_COOKIE put cookie
+    NETEASE_UID put uid
+    NETEASE_NICKNAME put nickname
+    NETEASE_AVATAR put avatar
+  }
+
+  fun clearNeteaseLogin() {
+    NETEASE_COOKIE put ""
+    NETEASE_UID put 0L
+    NETEASE_NICKNAME put ""
+    NETEASE_AVATAR put ""
+  }
+
   /**
    * 当前播放音质（默认最低的 128k）
    */
