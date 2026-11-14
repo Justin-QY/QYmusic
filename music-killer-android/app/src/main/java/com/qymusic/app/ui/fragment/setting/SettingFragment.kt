@@ -120,27 +120,38 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
     // ------------------------------------------------------------------ 曲库
 
     private fun initCatalogToggle() {
-        val current = SPConfig.catalogSource()
-        binding.toggleCatalog.check(
-            if (current == SPConfig.SOURCE_KUWO) R.id.btn_catalog_kw else R.id.btn_catalog_wy
-        )
+        updateCatalogButtons()
+        binding.btnCatalogWy.setOnClickListener { selectCatalog(SPConfig.SOURCE_NETEASE) }
+        binding.btnCatalogKw.setOnClickListener { selectCatalog(SPConfig.SOURCE_KUWO) }
+    }
 
-        binding.toggleCatalog.addOnButtonCheckedListener { _, checkedId, isChecked ->
-            if (!isChecked) {
-                return@addOnButtonCheckedListener
-            }
-            val source = when (checkedId) {
-                R.id.btn_catalog_kw -> SPConfig.SOURCE_KUWO
-                else -> SPConfig.SOURCE_NETEASE
-            }
-            if (source == SPConfig.catalogSource()) {
-                return@addOnButtonCheckedListener
-            }
-            SPConfig.setCatalogSource(source)
-            refreshSummary()
-            toast(if (source == SPConfig.SOURCE_KUWO) "已切换到酷我曲库，正在刷新首页" else "已切换到网易云曲库，正在刷新首页")
-            reloadHomeWithNewCatalog()
+    private fun selectCatalog(source: String) {
+        if (source == SPConfig.catalogSource()) {
+            return
         }
+        SPConfig.setCatalogSource(source)
+        updateCatalogButtons()
+        refreshSummary()
+        toast(if (source == SPConfig.SOURCE_KUWO) "已切换到酷我曲库，正在刷新首页" else "已切换到网易云曲库，正在刷新首页")
+        reloadHomeWithNewCatalog()
+    }
+
+    private fun updateCatalogButtons() {
+        val kuwo = SPConfig.catalogSource() == SPConfig.SOURCE_KUWO
+        styleCatalogButton(binding.btnCatalogWy, !kuwo)
+        styleCatalogButton(binding.btnCatalogKw, kuwo)
+    }
+
+    private fun styleCatalogButton(view: android.widget.TextView, selected: Boolean) {
+        view.setBackgroundResource(
+            if (selected) R.drawable.bg_segment_selected else android.R.color.transparent
+        )
+        val attr = if (selected) {
+            com.google.android.material.R.attr.colorOnPrimary
+        } else {
+            com.google.android.material.R.attr.colorOnSurfaceVariant
+        }
+        view.setTextColor(com.google.android.material.color.MaterialColors.getColor(view, attr))
     }
 
     /**

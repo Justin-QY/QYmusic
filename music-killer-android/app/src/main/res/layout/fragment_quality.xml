@@ -20,14 +20,6 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="默认音质"
-                android:textAppearance="@style/TextAppearance.Material3.HeadlineLarge"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
                 android:lineSpacingExtra="3dp"
                 android:text="选择的音质拿不到时，会自动降级播放。无损音质需要音源支持。"
                 android:textAppearance="@style/TextAppearance.Material3.BodyMedium"

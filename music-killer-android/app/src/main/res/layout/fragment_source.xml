@@ -20,14 +20,6 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:text="播放音源"
-                android:textAppearance="@style/TextAppearance.Material3.HeadlineLarge"
-                android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="8dp"
                 android:text="播放时先试第三方接口，失败再回落到落雪脚本。"
                 android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
                 android:textColor="?attr/colorOnSurfaceVariant" />
