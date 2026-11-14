@@ -1,0 +1,76 @@
+﻿name: music-killer
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: mk-mysql
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_general_ci
+      - --default-time-zone=+08:00
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: drny
+      TZ: Asia/Shanghai
+    volumes:
+      - mk-mysql-data:/var/lib/mysql
+      # 仅在数据卷为空（首次启动）时执行
+      - ./init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+    networks:
+      - mk-net
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: mk-redis
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    environment:
+      TZ: Asia/Shanghai
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks:
+      - mk-net
+    restart: unless-stopped
+
+  backend:
+    build:
+      # 构建上下文是仓库根目录，Dockerfile 在 deploy/ 下
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: music-killer-backend:latest
+    container_name: mk-backend
+    volumes:
+      # 外部音源脚本目录：放同名 .js 即可热替换 jar 内置脚本，改完调 POST /lx/reload 生效
+      - ./lx:/opt/music-killer/lx
+      # App 在线更新：update.json + apk
+      - ./update:/opt/music-killer/update:ro
+    ports:
+      - "8002:8002"
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      TZ: Asia/Shanghai
+      JAVA_OPTS: ${JAVA_OPTS:--Xms256m -Xmx1024m -Dfile.encoding=UTF-8}
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - mk-net
+    restart: unless-stopped
+
+networks:
+  mk-net:
+    name: mk-net
+
+volumes:
+  mk-mysql-data:
+    name: mk-mysql-data

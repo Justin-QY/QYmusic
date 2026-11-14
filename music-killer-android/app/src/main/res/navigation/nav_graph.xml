@@ -1,0 +1,256 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/homeFragment">
+
+    <!-- 全局默认动画 -->
+    <action
+        android:id="@+id/action_global"
+        app:enterAnim="@anim/slide_in_right"
+        app:exitAnim="@anim/slide_out_left"
+        app:popEnterAnim="@anim/slide_in_left"
+        app:popExitAnim="@anim/slide_out_right" />
+
+    <fragment
+        android:id="@+id/homeFragment"
+        android:name="com.qymusic.app.ui.fragment.HomeFragment"
+        tools:label="首页"
+        tools:layout="@layout/fragment_home">
+
+        <action
+            android:id="@+id/action_playlist_info"
+            app:destination="@id/playlistInfoFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+
+        <action
+            android:id="@+id/action_playlist_type"
+            app:destination="@id/playlistTypeFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+
+        <action
+            android:id="@+id/action_rank_info"
+            app:destination="@id/rankInfoFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+
+        <action
+            android:id="@+id/action_favorite"
+            app:destination="@id/favoriteFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+
+        <action
+            android:id="@+id/action_history"
+            app:destination="@id/playHistoryFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+    </fragment>
+
+    <action
+        android:id="@+id/action_artist_info"
+        app:destination="@id/artistInfoFragment"
+        app:enterAnim="@anim/slide_in_right"
+        app:exitAnim="@anim/slide_out_left"
+        app:popEnterAnim="@anim/slide_in_left"
+        app:popExitAnim="@anim/slide_out_right" />
+
+    <fragment
+        android:id="@+id/playlistInfoFragment"
+        android:name="com.qymusic.app.ui.fragment.playlist.PlayListInfoFragment"
+        tools:label="歌单信息"
+        tools:layout="@layout/fragment_playlist_info">
+        <argument
+            android:name="playlist"
+            app:argType="com.qymusic.app.model.PlayListModel"
+            app:nullable="false" />
+    </fragment>
+
+    <dialog
+        android:id="@+id/playQueueFragment"
+        android:name="com.qymusic.app.ui.fragment.play.PlayQueueDialogFragment"
+        android:label="播放队列"
+        tools:layout="@layout/fragment_play_queue" />
+
+    <action
+        android:id="@+id/action_play_queue"
+        app:destination="@id/playQueueFragment"
+        app:enterAnim="@anim/slide_in_right"
+        app:exitAnim="@anim/slide_out_left"
+        app:popEnterAnim="@anim/slide_in_left"
+        app:popExitAnim="@anim/slide_out_right" />
+
+    <action
+        android:id="@+id/action_search"
+        app:destination="@id/searchMusicFragment"
+        app:enterAnim="@anim/slide_in_right"
+        app:exitAnim="@anim/slide_out_left"
+        app:popEnterAnim="@anim/slide_in_left"
+        app:popExitAnim="@anim/slide_out_right" />
+
+    <action
+        android:id="@+id/action_setting"
+        app:destination="@id/settingFragment"
+        app:enterAnim="@anim/slide_in_right"
+        app:exitAnim="@anim/slide_out_left"
+        app:popEnterAnim="@anim/slide_in_left"
+        app:popExitAnim="@anim/slide_out_right" />
+
+    <action
+        android:id="@+id/action_download"
+        app:destination="@id/downloadFragment"
+        app:enterAnim="@anim/slide_in_right"
+        app:exitAnim="@anim/slide_out_left"
+        app:popEnterAnim="@anim/slide_in_left"
+        app:popExitAnim="@anim/slide_out_right" />
+
+    <action
+        android:id="@+id/action_downloaded"
+        app:destination="@id/downloadedFragment"
+        app:enterAnim="@anim/slide_in_right"
+        app:exitAnim="@anim/slide_out_left"
+        app:popEnterAnim="@anim/slide_in_left"
+        app:popExitAnim="@anim/slide_out_right" />
+
+    <fragment
+        android:id="@+id/searchMusicFragment"
+        android:name="com.qymusic.app.ui.fragment.search.SearchMusicFragment"
+        android:label="搜索音乐"
+        tools:layout="@layout/fragment_search_music">
+
+        <action
+            android:id="@+id/action_playlist_info"
+            app:destination="@id/playlistInfoFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+
+        <action android:id="@+id/action_artist_info"
+            app:destination="@id/artistInfoFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right"/>
+
+    </fragment>
+
+    <fragment
+        android:id="@+id/settingFragment"
+        android:name="com.qymusic.app.ui.fragment.setting.SettingFragment"
+        android:label="设置"
+        tools:layout="@layout/fragment_setting">
+
+        <action
+            android:id="@+id/action_setting_quality"
+            app:destination="@id/qualityFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+
+        <action
+            android:id="@+id/action_setting_source"
+            app:destination="@id/sourceFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+
+    </fragment>
+
+    <fragment
+        android:id="@+id/qualityFragment"
+        android:name="com.qymusic.app.ui.fragment.setting.QualityFragment"
+        android:label="默认音质"
+        tools:layout="@layout/fragment_quality" />
+
+    <fragment
+        android:id="@+id/sourceFragment"
+        android:name="com.qymusic.app.ui.fragment.setting.SourceFragment"
+        android:label="播放音源"
+        tools:layout="@layout/fragment_source" />
+
+    <fragment
+        android:id="@+id/downloadFragment"
+        android:name="com.qymusic.app.ui.fragment.download.DownloadFragment"
+        android:label="下载列表"
+        tools:layout="@layout/fragment_download" />
+
+    <fragment
+        android:id="@+id/downloadedFragment"
+        android:name="com.qymusic.app.ui.fragment.download.DownloadedFragment"
+        android:label="已下载歌曲"
+        tools:layout="@layout/fragment_downloaded" />
+
+    <fragment
+        android:id="@+id/playlistTypeFragment"
+        android:name="com.qymusic.app.ui.fragment.playlist.PlayListTypeFragment"
+        android:label="歌单分类"
+        tools:layout="@layout/fragment_playlist_type">
+
+        <argument
+            android:name="playListTag"
+            app:argType="com.qymusic.app.model.PlayListTagModel"
+            app:nullable="false" />
+
+        <action
+            android:id="@+id/action_playlist_info"
+            app:destination="@id/playlistInfoFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/rankInfoFragment"
+        android:name="com.qymusic.app.ui.fragment.rank.RankInfoFragment"
+        android:label="排行榜歌曲"
+        tools:layout="@layout/fragment_rank_info">
+
+        <argument
+            android:name="rankItem"
+            app:argType="com.qymusic.app.model.MusicRankMenuItemModel"
+            app:nullable="false" />
+
+    </fragment>
+
+    <fragment
+        android:id="@+id/artistInfoFragment"
+        android:name="com.qymusic.app.ui.fragment.artist.ArtistInfoFragment"
+        android:label="歌手主页"
+        tools:layout="@layout/fragment_artist_info">
+
+        <argument android:name="artist"
+            app:nullable="false"
+            app:argType="com.qymusic.app.model.ArtistModel" />
+
+    </fragment>
+
+    <fragment
+        android:id="@+id/favoriteFragment"
+        android:name="com.qymusic.app.ui.fragment.favorite.FavoriteFragment"
+        android:label="我的收藏"
+        tools:layout="@layout/fragment_favorite" />
+
+    <fragment android:id="@+id/playHistoryFragment"
+        android:name="com.qymusic.app.ui.fragment.play.PlayHistoryFragment"
+        android:label="播放历史"
+        tools:layout="@layout/fragment_play_history" />
+
+
+</navigation>

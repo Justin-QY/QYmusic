@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 设置页磨砂玻璃（深色） -->
+    <color name="glass_card">#B31B212B</color>
+    <color name="glass_stroke">#33FFFFFF</color>
+</resources>

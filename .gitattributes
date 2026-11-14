@@ -1,0 +1,5 @@
+# 部署相关文件统一使用 LF，避免在 Windows 上编辑后在 Linux 上出现 \r 报错
+deploy/** text eol=lf
+*.sh       text eol=lf
+Dockerfile text eol=lf
+.dockerignore text eol=lf

@@ -1,0 +1,192 @@
+package com.qymusic.app.ui.fragment.setting
+
+import androidx.lifecycle.lifecycleScope
+import com.drake.net.Get
+import com.drake.net.Post
+import com.drake.net.utils.scopeNet
+import com.drake.tooltip.toast
+import kotlinx.coroutines.launch
+import org.json.JSONObject
+import com.qymusic.app.R
+import com.qymusic.app.base.BaseMusicAppbarFragment
+import com.qymusic.app.config.Api
+import com.qymusic.app.config.SPConfig
+import com.qymusic.app.databinding.FragmentSourceBinding
+import com.qymusic.app.databinding.ItemScriptNameBinding
+import com.qymusic.app.model.LxScriptModel
+
+/**
+ * 播放音源设置（对应设计稿第三页）
+ */
+class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.fragment_source) {
+
+    private var loadingScripts = false
+    private var syncingSwitch = false
+
+    override fun initView() {
+        binding.itemChksz.setOnClickListener { showKeyDialog() }
+        binding.btnEditKey.setOnClickListener { showKeyDialog() }
+        binding.btnRefresh.setOnClickListener { refreshSources() }
+        binding.btnTestThirdParty.setOnClickListener { testThirdParty() }
+
+        binding.switchThirdParty.setOnCheckedChangeListener { _, checked ->
+            if (syncingSwitch) {
+                return@setOnCheckedChangeListener
+            }
+            if (checked) {
+                if (SPConfig.thirdPartyKey().isBlank()) {
+                    showKeyDialog(enableAfterSave = true)
+                } else {
+                    SPConfig.setThirdPartyEnabled(true)
+                }
+            } else {
+                SPConfig.setThirdPartyEnabled(false)
+            }
+            updateThirdPartyStatus()
+        }
+    }
+
+    override fun initData() {
+    }
+
+    override fun onResume() {
+        super.onResume()
+        updateThirdPartyStatus()
+    }
+
+    override fun onFirstResume() {
+        super.onFirstResume()
+        loadScripts(showToast = false)
+    }
+
+    // ------------------------------------------------------------------ 第三方音源
+
+    private fun updateThirdPartyStatus() {
+        val hasKey = SPConfig.thirdPartyKey().isNotBlank()
+        val enabled = SPConfig.isThirdPartyEnabled() && hasKey
+        syncingSwitch = true
+        binding.switchThirdParty.isChecked = enabled
+        syncingSwitch = false
+        binding.tvChkszStatus.text = when {
+            !hasKey -> "未配置密钥 · 点击填写（api.chksz.com）"
+            enabled -> "✓ 已启用 · 密钥已保存"
+            else -> "已配置密钥，未启用"
+        }
+        if (!hasKey && SPConfig.isThirdPartyEnabled()) {
+            SPConfig.setThirdPartyEnabled(false)
+        }
+    }
+
+    private fun showKeyDialog(enableAfterSave: Boolean = false) {
+        val density = resources.displayMetrics.density
+        val input = android.widget.EditText(requireContext()).apply {
+            hint = "ChKSz API Key"
+            isSingleLine = true
+            setText(SPConfig.thirdPartyKey())
+            setSelection(text.length)
+        }
+        val container = android.widget.FrameLayout(requireContext()).apply {
+            val padding = (22 * density).toInt()
+            setPadding(padding, (8 * density).toInt(), padding, 0)
+            addView(
+                input,
+                android.widget.FrameLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            )
+        }
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+            .setTitle("ChKSz API 密钥")
+            .setMessage("请填写你在 api.chksz.com 登录后获取的个人 apikey。密钥仅保存在本机，不会上传。")
+            .setView(container)
+            .setPositiveButton("保存") { _, _ ->
+                val key = input.text.toString().trim()
+                if (key.isEmpty()) {
+                    toast("密钥不能为空")
+                    return@setPositiveButton
+                }
+                SPConfig.setThirdPartyKey(key)
+                if (enableAfterSave) {
+                    SPConfig.setThirdPartyEnabled(true)
+                }
+                updateThirdPartyStatus()
+                toast(if (SPConfig.isThirdPartyEnabled()) "第三方音源已启用" else "密钥已保存")
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun testThirdParty() {
+        val key = SPConfig.thirdPartyKey()
+        if (key.isBlank()) {
+            toast("请先填写 ChKSz API 密钥")
+            showKeyDialog()
+            return
+        }
+        toast("正在测试…")
+        viewLifecycleOwner.lifecycleScope.launch {
+            val ok = runCatching {
+                val raw = Get<String>("${SPConfig.THIRD_PARTY_BASE}/api/163_search") {
+                    addQuery("keyword", "周杰伦")
+                    addQuery("limit", 1)
+                    addQuery("apikey", key)
+                }.await().orEmpty()
+                JSONObject(raw).optInt("code", 0) == 200
+            }.getOrElse { false }
+            toast(if (ok) "连接成功，密钥可用" else "连接失败，请检查密钥或网络")
+        }
+    }
+
+    // ------------------------------------------------------------------ 落雪脚本
+
+    private fun loadScripts(showToast: Boolean) {
+        if (loadingScripts) {
+            return
+        }
+        loadingScripts = true
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val list = Get<List<LxScriptModel>>(Api.LX_SCRIPTS).await()
+                renderScripts(list)
+            } catch (e: Exception) {
+                binding.tvScriptCount.text = "读取失败"
+                binding.tvScriptsEmpty.visibility = android.view.View.VISIBLE
+                binding.tvScriptsEmpty.text = "读取失败：${e.message ?: "网络异常"}\n请点「刷新音源」重试"
+                if (showToast) {
+                    toast(e.message ?: "读取音源脚本失败")
+                }
+            } finally {
+                loadingScripts = false
+            }
+        }
+    }
+
+    private fun renderScripts(list: List<LxScriptModel>) {
+        binding.tvScriptCount.text = "${list.size} 个"
+        binding.tvScriptsEmpty.visibility =
+            if (list.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
+        if (list.isEmpty()) {
+            binding.tvScriptsEmpty.text = "还没有可用的音源脚本"
+        }
+
+        val container = binding.llScripts
+        container.removeAllViews()
+        list.forEach { script ->
+            val item = ItemScriptNameBinding.inflate(layoutInflater, container, false)
+            item.tvScriptName.text = script.showName
+            container.addView(item.root)
+        }
+    }
+
+    private fun refreshSources() {
+        if (loadingScripts) {
+            return
+        }
+        scopeNet {
+            Post<String>(Api.LX_RELOAD).await()
+            toast("音源已刷新")
+            loadScripts(showToast = false)
+        }
+    }
+}

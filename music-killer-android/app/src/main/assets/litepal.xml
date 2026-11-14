@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<litepal>
+    <dbname value="music-killer" />
+    <version value="7" />
+    <list>
+        <!-- 收藏 -->
+        <mapping class="com.qymusic.app.model.FavoriteModel" />
+        <mapping class="com.qymusic.app.model.search.SearchHistory" />
+        <mapping class="com.qymusic.app.model.download.DownloadModel" />
+        <mapping class="com.qymusic.app.model.PlayHistory" />
+    </list>
+</litepal>

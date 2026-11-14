@@ -1,0 +1,19 @@
+# 构建上下文排除项（构建上下文是仓库根目录）
+.git
+.gitattributes
+.gitignore
+.idea
+*.md
+
+# 与后端镜像无关的模块
+music-killer-android
+screenshots
+
+# 构建产物（容器内会重新编译）
+**/target
+**/build
+**/.gradle
+**/.cxx
+
+# 本地环境变量不进入镜像
+deploy/.env

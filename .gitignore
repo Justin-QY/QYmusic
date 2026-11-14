@@ -1,0 +1,23 @@
+# Java 构建输出
+music-killer-java/**/target/
+
+# Android 构建输出
+music-killer-android/**/build/
+music-killer-android/.gradle/
+music-killer-android/app/.cxx/
+music-killer-android/local.properties
+music-killer-android/.idea/
+
+# 系统文件
+.DS_Store
+Thumbs.db
+
+# App 更新安装包（体积大，不入库）
+deploy/update/*.apk
+deploy/update/*.json
+
+# 本地密钥与部署私密配置
+deploy/.env
+music-killer-android/keystore.properties
+keystore.properties
+music-killer-android/.idea/

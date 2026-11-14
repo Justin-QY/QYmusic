@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- 在线更新把安装包下载到 cacheDir/update/ -->
+    <cache-path
+        name="update"
+        path="update/" />
+    <!-- 兼容旧逻辑：externalCacheDir 根目录 -->
+    <external-cache-path
+        name="external_update"
+        path="." />
+</paths>
