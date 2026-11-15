@@ -107,6 +107,11 @@ class PlatformLoginActivity : AppCompatActivity() {
             domStorageEnabled = true
             databaseEnabled = true
             userAgentString = if (config.desktop) DESKTOP_UA else MOBILE_UA
+            useWideViewPort = true
+            loadWithOverviewMode = true
+            setSupportZoom(true)
+            builtInZoomControls = true
+            displayZoomControls = false
         }
 
         binding.webView.webViewClient = object : WebViewClient() {
@@ -135,9 +140,9 @@ class PlatformLoginActivity : AppCompatActivity() {
         binding.webView.postDelayed(object : Runnable {
             override fun run() {
                 checkCookie()
-                binding.webView.postDelayed(this, 1500)
+                binding.webView.postDelayed(this, 600)
             }
-        }, 1500)
+        }, 600)
     }
 
     private fun matchesCookie(cookie: String): Boolean =
@@ -194,6 +199,9 @@ class PlatformLoginActivity : AppCompatActivity() {
                 }
                 toast("登录成功")
                 setResult(RESULT_OK)
+                // 登录凭据已经拿到，清掉 WebView 里的会话，避免切换账号时复用
+                CookieManager.getInstance().removeAllCookies(null)
+                CookieManager.getInstance().flush()
                 finish()
             } catch (e: Exception) {
                 handled = false

@@ -112,6 +112,6 @@ lx:
 # App 在线更新
 app:
   # 强制更新：低于该 versionCode 的客户端，服务端不返回任何业务数据
-  min-version-code: 21
+  min-version-code: 22
   update:
     dir: /opt/music-killer/update # update.json 与 apk 所在目录，部署时挂载
