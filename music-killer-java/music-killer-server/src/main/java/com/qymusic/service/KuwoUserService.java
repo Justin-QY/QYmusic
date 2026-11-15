@@ -65,31 +65,29 @@ public class KuwoUserService {
         if (uid.isBlank()) {
             return Result.error("请先登录酷我音乐");
         }
-        String url = HttpUrl.parse("http://nplserver.kuwo.cn/pl.svc").newBuilder()
-                .addQueryParameter("op", "getlistbyuid")
+        String url = HttpUrl.parse("https://kuwo.cn/api/www/user/playList").newBuilder()
                 .addQueryParameter("uid", uid)
-                .addQueryParameter("loginUid", uid)
-                .addQueryParameter("loginSid", token)
-                .addQueryParameter("newver", "3")
                 .addQueryParameter("pn", "1")
-                .addQueryParameter("rn", "100")
+                .addQueryParameter("rn", "300")
+                .addQueryParameter("httpsStatus", "1")
                 .build().toString();
         JsonNode root = get(url, cookie);
-        JsonNode array = root == null ? null : findArray(root, "list", "data", "playlist");
+        JsonNode data = root == null ? null : root.path("data");
+        JsonNode array = data == null ? null : data.path("list");
         List<PlayList> list = new ArrayList<>();
         if (array != null && array.isArray()) {
             for (JsonNode node : array) {
                 PlayList playlist = new PlayList();
-                long id = node.path("id").asLong(node.path("pid").asLong(0));
+                long id = node.path("pid").asLong(node.path("id").asLong(0));
                 if (id <= 0) {
                     continue;
                 }
                 playlist.setId(id);
                 playlist.setName(node.path("name").asText(""));
-                String pic = node.path("pic").asText("");
+                String pic = node.path("img").asText(node.path("pic").asText(""));
                 playlist.setImg(pic);
                 playlist.setImg700(pic);
-                playlist.setTotal(node.path("songnum").asInt(0));
+                playlist.setTotal(node.path("total").asInt(node.path("count").asInt(0)));
                 playlist.setUname(node.path("username").asText(""));
                 playlist.setDesc(node.path("desc").asText(""));
                 list.add(playlist);
@@ -116,17 +114,20 @@ public class KuwoUserService {
         }
         String uid = cookieValue(cookie, "userid");
         String token = cookieValue(cookie, "kw_token");
-        String url = HttpUrl.parse("http://nplserver.kuwo.cn/list.s").newBuilder()
-                .addQueryParameter("user", uid)
-                .addQueryParameter("loginUid", uid)
-                .addQueryParameter("loginSid", token)
-                .addQueryParameter("type", "songlist")
-                .addQueryParameter("id", String.valueOf(liked.getId()))
+        String url = HttpUrl.parse("http://nplserver.kuwo.cn/pl.svc").newBuilder()
+                .addQueryParameter("op", "getlistinfo")
+                .addQueryParameter("pid", String.valueOf(liked.getId()))
                 .addQueryParameter("pn", "0")
                 .addQueryParameter("rn", String.valueOf(Math.max(1, limit)))
+                .addQueryParameter("encode", "utf8")
+                .addQueryParameter("keyset", "pl2012")
+                .addQueryParameter("identity", "kuwo")
+                .addQueryParameter("pcmp4", "1")
+                .addQueryParameter("vipver", "MUSIC_9.0.5.0_W1")
+                .addQueryParameter("newver", "1")
                 .build().toString();
         JsonNode root = get(url, cookie);
-        JsonNode array = root == null ? null : findArray(root, "list", "musiclist", "data");
+        JsonNode array = root == null ? null : root.path("musiclist");
         List<Music> list = new ArrayList<>();
         if (array != null && array.isArray()) {
             for (JsonNode node : array) {

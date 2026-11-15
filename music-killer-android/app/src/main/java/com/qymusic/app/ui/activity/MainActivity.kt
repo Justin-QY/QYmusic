@@ -302,7 +302,8 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
 
     val bottomBar = binding.bottomBar
     bottomBarBehavior = BottomSheetBehavior.from(bottomBar)
-    ViewCompat.setOnApplyWindowInsetsListener(bottomBar) { v, insets ->
+    // 用根布局接收 insets：播放栏隐藏时也能正确给底部导航和内容留出空间
+    ViewCompat.setOnApplyWindowInsetsListener(binding.coordinator) { v, insets ->
       val navigationBarHeight =
         insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
       navigationBarInset = navigationBarHeight

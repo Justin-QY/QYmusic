@@ -34,24 +34,52 @@ class PlatformLoginActivity : AppCompatActivity() {
         const val PLATFORM_QQ = "qq"
         const val PLATFORM_KUWO = "kuwo"
 
+        const val MOBILE_UA =
+            "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"
+        const val DESKTOP_UA =
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+        const val VIEWPORT_JS =
+            "(function(){var m=document.querySelector('meta[name=\"viewport\"]');" +
+                "if(!m){m=document.createElement('meta');m.name='viewport';" +
+                "(document.head||document.documentElement).appendChild(m);}" +
+                "m.setAttribute('content','width=1280');})()"
+
         private val CONFIG = mapOf(
             PLATFORM_NETEASE to LoginConfig(
-                "https://music.163.com/#/login", "https://music.163.com", listOf("MUSIC_U="), Api.NETEASE_ACCOUNT
+                "https://music.163.com/#/login",
+                listOf("https://music.163.com"),
+                listOf("MUSIC_U="),
+                Api.NETEASE_ACCOUNT,
+                false
             ),
             PLATFORM_QQ to LoginConfig(
-                "https://xui.ptlogin2.qq.com/cgi-bin/xlogin?appid=716027609&daid=383&style=33&hide_title_bar=1&hide_border=1&target=self&s_url=https%3A%2F%2Fy.qq.com%2Fportal%2Fprofile.html",
-                "https://y.qq.com", listOf("qqmusic_key=", "qm_keyst="), Api.QQ_ACCOUNT
+                "https://y.qq.com/",
+                listOf(
+                    "https://y.qq.com", "https://u.y.qq.com", "https://c.y.qq.com",
+                    "https://graph.qq.com", "https://ssl.ptlogin2.qq.com"
+                ),
+                listOf("qqmusic_key=", "qm_keyst="),
+                Api.QQ_ACCOUNT,
+                true
             ),
             PLATFORM_KUWO to LoginConfig(
-                "https://passport.kuwo.cn/", "https://www.kuwo.cn", listOf("kw_token="), Api.KUWO_ACCOUNT
+                "https://www.kuwo.cn/",
+                listOf(
+                    "https://www.kuwo.cn", "https://kuwo.cn",
+                    "https://m.kuwo.cn", "https://passport.kuwo.cn"
+                ),
+                listOf("kw_token="),
+                Api.KUWO_ACCOUNT,
+                true
             ),
         )
 
         private data class LoginConfig(
             val url: String,
-            val cookieDomain: String,
+            val cookieDomains: List<String>,
             val cookieKeys: List<String>,
             val accountApi: String,
+            val desktop: Boolean,
         )
     }
 
@@ -78,13 +106,15 @@ class PlatformLoginActivity : AppCompatActivity() {
             javaScriptEnabled = true
             domStorageEnabled = true
             databaseEnabled = true
-            userAgentString =
-                "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"
+            userAgentString = if (config.desktop) DESKTOP_UA else MOBILE_UA
         }
 
         binding.webView.webViewClient = object : WebViewClient() {
             override fun onPageFinished(view: WebView?, url: String?) {
                 binding.progress.visibility = android.view.View.GONE
+                if (config.desktop) {
+                    view?.evaluateJavascript(VIEWPORT_JS, null)
+                }
                 checkCookie()
             }
 
@@ -113,9 +143,29 @@ class PlatformLoginActivity : AppCompatActivity() {
     private fun matchesCookie(cookie: String): Boolean =
         config.cookieKeys.any { cookie.contains(it) }
 
+    /** QQ/酷我的登录 Cookie 分散在多个子域，需要合并读取 */
+    private fun readCookies(): String {
+        val merged = LinkedHashMap<String, String>()
+        config.cookieDomains.forEach { domain ->
+            val header = runCatching {
+                CookieManager.getInstance().getCookie(domain)
+            }.getOrNull() ?: return@forEach
+            header.split(";").forEach { part ->
+                val index = part.indexOf('=')
+                if (index > 0) {
+                    merged.putIfAbsent(
+                        part.substring(0, index).trim(),
+                        part.substring(index + 1).trim()
+                    )
+                }
+            }
+        }
+        return merged.entries.joinToString("; ") { "${it.key}=${it.value}" }
+    }
+
     private fun checkCookie() {
-        val cookie = CookieManager.getInstance().getCookie(config.cookieDomain) ?: return
-        if (matchesCookie(cookie)) {
+        val cookie = readCookies()
+        if (cookie.isNotBlank() && matchesCookie(cookie)) {
             handleCookie(cookie)
         }
     }
