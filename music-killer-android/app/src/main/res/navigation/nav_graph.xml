@@ -155,6 +155,21 @@
         tools:layout="@layout/fragment_cloud" />
 
     <fragment
+        android:id="@+id/cloudAllFragment"
+        android:name="com.qymusic.app.ui.fragment.cloud.CloudAllFragment"
+        android:label="云端"
+        tools:layout="@layout/fragment_cloud_all">
+        <argument
+            android:name="type"
+            app:argType="string"
+            app:nullable="false" />
+        <argument
+            android:name="platform"
+            app:argType="string"
+            app:nullable="false" />
+    </fragment>
+
+    <fragment
         android:id="@+id/settingFragment"
         android:name="com.qymusic.app.ui.fragment.setting.SettingFragment"
         android:label="设置"

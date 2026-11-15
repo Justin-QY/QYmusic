@@ -39,7 +39,8 @@ class PlatformLoginActivity : AppCompatActivity() {
                 "https://music.163.com/#/login", "https://music.163.com", listOf("MUSIC_U="), Api.NETEASE_ACCOUNT
             ),
             PLATFORM_QQ to LoginConfig(
-                "https://y.qq.com/#login", "https://y.qq.com", listOf("qqmusic_key=", "qm_keyst="), Api.QQ_ACCOUNT
+                "https://xui.ptlogin2.qq.com/cgi-bin/xlogin?appid=716027609&daid=383&style=33&hide_title_bar=1&hide_border=1&target=self&s_url=https%3A%2F%2Fy.qq.com%2Fportal%2Fprofile.html",
+                "https://y.qq.com", listOf("qqmusic_key=", "qm_keyst="), Api.QQ_ACCOUNT
             ),
             PLATFORM_KUWO to LoginConfig(
                 "https://passport.kuwo.cn/", "https://www.kuwo.cn", listOf("kw_token="), Api.KUWO_ACCOUNT

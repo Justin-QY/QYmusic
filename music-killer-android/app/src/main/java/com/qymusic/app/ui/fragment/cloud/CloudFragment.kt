@@ -51,6 +51,8 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
 
     override fun isAddScrollView(): Boolean = true
 
+    override fun openMediaController(): Boolean = true
+
     override fun getMusicModels(): List<Any?>? = binding.rvLiked.models
 
     override fun initView() {
@@ -88,6 +90,10 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
             )
         }
         binding.btnLogout.setOnClickListener { logout() }
+        binding.tvManualCookie.setOnClickListener { showManualCookieDialog() }
+        binding.tvMoreLiked.setOnClickListener { openAll("liked") }
+        binding.tvMorePlaylists.setOnClickListener { openAll("playlists") }
+        binding.tvMoreArtists.setOnClickListener { openAll("artists") }
     }
 
     override fun initData() {
@@ -126,6 +132,7 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         styleChip(binding.chipNetease, platform == PlatformLoginActivity.PLATFORM_NETEASE)
         styleChip(binding.chipQq, platform == PlatformLoginActivity.PLATFORM_QQ)
         styleChip(binding.chipKuwo, platform == PlatformLoginActivity.PLATFORM_KUWO)
+        binding.btnLogin.text = "登录" + platformName()
 
         val isNetease = platform == PlatformLoginActivity.PLATFORM_NETEASE
         binding.tvArtistsTitle.visibility = if (isNetease) View.VISIBLE else View.GONE
@@ -212,10 +219,10 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
                     null
                 }
 
-                binding.rvLiked.models = liked.await()
-                binding.rvPlaylists.models = playlists.await()
+                binding.rvLiked.models = liked.await().take(5)
+                binding.rvPlaylists.models = playlists.await().take(6)
                 if (artists != null) {
-                    binding.rvArtists.models = artists.await()
+                    binding.rvArtists.models = artists.await().take(6)
                 }
             } catch (e: Exception) {
                 toast(e.message ?: "加载云端数据失败")
@@ -223,6 +230,13 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
                 loading = false
             }
         }
+    }
+
+    private fun openAll(type: String) {
+        navController.navigate(
+            R.id.cloudAllFragment,
+            bundleOf("type" to type, "platform" to platform)
+        )
     }
 
     private fun logout() {
@@ -290,5 +304,72 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
             return true
         }
         return false
+    }
+
+    /**
+     * 网页登录被风控/打不开时的手动 Cookie 兜底。
+     */
+    private fun showManualCookieDialog() {
+        val density = resources.displayMetrics.density
+        val input = android.widget.EditText(requireContext()).apply {
+            hint = "粘贴浏览器请求头里的完整 Cookie"
+            minLines = 3
+            gravity = android.view.Gravity.TOP or android.view.Gravity.START
+        }
+        val container = android.widget.FrameLayout(requireContext()).apply {
+            val padding = (20 * density).toInt()
+            setPadding(padding, (8 * density).toInt(), padding, 0)
+            addView(
+                input,
+                android.widget.FrameLayout.LayoutParams(
+                    android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                    android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            )
+        }
+        com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
+            .setTitle(platformName() + " Cookie")
+            .setMessage("在浏览器登录 " + platformName() + " 后，复制任意请求的 Cookie 粘贴到这里。只保存在本机。")
+            .setView(container)
+            .setPositiveButton("保存") { _, _ ->
+                val cookie = input.text.toString().trim()
+                if (cookie.isBlank()) {
+                    toast("Cookie 不能为空")
+                    return@setPositiveButton
+                }
+                saveManualCookie(cookie)
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun saveManualCookie(cookie: String) {
+        val api = when (platform) {
+            PlatformLoginActivity.PLATFORM_QQ -> Api.QQ_ACCOUNT
+            PlatformLoginActivity.PLATFORM_KUWO -> Api.KUWO_ACCOUNT
+            else -> Api.NETEASE_ACCOUNT
+        }
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val account = Get<com.qymusic.app.model.PlatformAccount>(api) {
+                    addQuery("cookie", cookie)
+                }.await()
+                when (platform) {
+                    PlatformLoginActivity.PLATFORM_QQ -> SPConfig.saveQqLogin(
+                        cookie, account.userId.toString(), account.nickname, account.avatarUrl
+                    )
+                    PlatformLoginActivity.PLATFORM_KUWO -> SPConfig.saveKuwoLogin(
+                        cookie, account.userId, account.nickname, account.avatarUrl
+                    )
+                    else -> SPConfig.saveNeteaseLogin(
+                        cookie, account.userId, account.nickname, account.avatarUrl
+                    )
+                }
+                refreshUi()
+                toast("登录成功")
+            } catch (e: Exception) {
+                toast("Cookie 无效或已过期")
+            }
+        }
     }
 }
