@@ -15,8 +15,11 @@ public class Music {
     @JsonAlias("ARTIST")
     private String artist;
 
-    @Schema(description = "音源平台：kw=酷我，wy=网易云", example = "kw")
+    @Schema(description = "音源平台：kw=酷我，wy=网易云，qq=QQ音乐", example = "kw")
     private String source = "kw";
+
+    @Schema(description = "平台原始 ID（QQ 音乐的 songmid 等字符串 ID）")
+    private String sourceId;
 
     @Schema(description = "封面图片", example = "https://image.baidu.com/test.jpg")
     private String pic;

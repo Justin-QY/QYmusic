@@ -33,6 +33,9 @@ class NeteaseLoginActivity : AppCompatActivity() {
 
         CookieManager.getInstance().setAcceptCookie(true)
         CookieManager.getInstance().setAcceptThirdPartyCookies(binding.webView, true)
+        // 每次进入登录页都使用干净的会话，避免直接命中上一次的登录态
+        CookieManager.getInstance().removeAllCookies(null)
+        CookieManager.getInstance().flush()
 
         binding.webView.settings.apply {
             javaScriptEnabled = true

@@ -291,6 +291,10 @@ abstract class BaseMusicNavFragment<V : ViewDataBinding>(@LayoutRes contentLayou
       addQuery("id", musicModel.id) // 歌曲 id
       addQuery("bridge", currentBridge) // 音质
       addQuery("source", musicModel.source)
+      addQuery("sourceId", musicModel.sourceId)
+      if (musicModel.source == "qq") {
+        addQuery("qqCookie", SPConfig.qqCookie())
+      }
       addQuery("name", musicModel.showName)
       addQuery("singer", musicModel.artist)
       addQuery("album", musicModel.album)
@@ -318,6 +322,12 @@ abstract class BaseMusicNavFragment<V : ViewDataBinding>(@LayoutRes contentLayou
         .appendQueryParameter("id", musicModel.id.toString())
         .appendQueryParameter("bridge", currentBridge)
         .appendQueryParameter("source", musicModel.source)
+        .appendQueryParameter("sourceId", musicModel.sourceId)
+        .apply {
+          if (musicModel.source == "qq") {
+            appendQueryParameter("qqCookie", SPConfig.qqCookie())
+          }
+        }
         .appendQueryParameter("name", musicModel.showName)
         .appendQueryParameter("singer", musicModel.artist)
         .appendQueryParameter("album", musicModel.album)

@@ -30,6 +30,9 @@ data class ArtistModel(
     var pic70: String = "",
     @SerialName("id")
     var id: Long = 0,
+    /** 平台原始 ID（QQ 音乐的 singerMID 等） */
+    @SerialName("sourceId")
+    var sourceId: String = "",
     @SerialName("pic300")
     var pic300: String = ""
 ): java.io.Serializable

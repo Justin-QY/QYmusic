@@ -13,6 +13,48 @@
         android:paddingEnd="16dp"
         android:paddingBottom="28dp">
 
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="42dp"
+            android:background="@drawable/bg_segment_container"
+            android:orientation="horizontal"
+            android:padding="4dp">
+
+            <TextView
+                android:id="@+id/chip_netease"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@drawable/bg_segment_selected"
+                android:gravity="center"
+                android:text="网易云"
+                android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
+                android:textColor="?attr/colorOnPrimary" />
+
+            <TextView
+                android:id="@+id/chip_qq"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:gravity="center"
+                android:text="QQ音乐"
+                android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+
+            <TextView
+                android:id="@+id/chip_kuwo"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="@android:color/transparent"
+                android:gravity="center"
+                android:text="酷我"
+                android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
+                android:textColor="?attr/colorOnSurfaceVariant" />
+
+        </LinearLayout>
+
         <!-- 未登录 -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/card_login"
@@ -107,6 +149,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
+                        android:id="@+id/tv_platform_state"
                         android:text="网易云账号已登录"
                         android:textAppearance="@style/TextAppearance.Material3.BodySmall"
                         android:textColor="?attr/colorOnSurfaceVariant" />
@@ -166,6 +209,7 @@
                 android:overScrollMode="never" />
 
             <TextView
+                android:id="@+id/tv_artists_title"
                 style="@style/TextAppearance.Material3.LabelLarge"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

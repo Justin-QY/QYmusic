@@ -235,8 +235,31 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
       mainViewModel.changeBottomBarVisible(destination.shouldShowBottomNav())
     }
 
-    // 底部导航：首页 / 云端
+    // 底部导航：按注册表动态生成（可在设置里隐藏模块）
+    rebuildBottomNav(navController)
+  }
+
+  /**
+   * 根据 NavModules 注册表生成底部导航；设置页隐藏模块后重建 Activity 生效。
+   */
+  private fun rebuildBottomNav(navController: androidx.navigation.NavController) {
+    val visible = com.qymusic.app.config.NavModules.visible()
+    if (visible.isEmpty()) {
+      return
+    }
+    val menu = binding.bottomNav.menu
+    menu.clear()
+    visible.forEach { module ->
+      menu.add(0, module.id, 0, module.title).setIcon(module.icon)
+    }
     binding.bottomNav.setupWithNavController(navController)
+
+    val current = navController.currentDestination?.id
+    if (com.qymusic.app.config.NavModules.find(current ?: -1) != null &&
+      visible.none { it.id == current }
+    ) {
+      navController.navigate(visible.first().id)
+    }
   }
 
   override fun onClick(v: View) {

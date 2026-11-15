@@ -59,6 +59,36 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         initCatalogToggle()
         initThemeToggle()
         initSwitches()
+        initNavToggles()
+    }
+
+    /**
+     * 底部导航开关：模块来自 NavModules 注册表，未来新增模块自动出现
+     */
+    private fun initNavToggles() {
+        val container = binding.llNavModules
+        container.removeAllViews()
+        val density = resources.displayMetrics.density
+        com.qymusic.app.config.NavModules.ALL.forEach { module ->
+            val switch = com.google.android.material.materialswitch.MaterialSwitch(requireContext()).apply {
+                text = module.title
+                isChecked = SPConfig.isNavVisible(module.key)
+                setPadding(0, (6 * density).toInt(), 0, (6 * density).toInt())
+            }
+            switch.setOnCheckedChangeListener { _, checked ->
+                if (!checked && com.qymusic.app.config.NavModules.ALL.count {
+                        SPConfig.isNavVisible(it.key)
+                    } <= 1
+                ) {
+                    switch.isChecked = true
+                    toast("至少保留一个导航栏")
+                    return@setOnCheckedChangeListener
+                }
+                SPConfig.setNavVisible(module.key, checked)
+                requireActivity().recreate()
+            }
+            container.addView(switch)
+        }
     }
 
     override fun initData() {
@@ -76,8 +106,11 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
     private fun refreshSummary() {
         binding.tvVersion.text = "版本 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
 
-        binding.tvConfigCatalog.text =
-            if (SPConfig.catalogSource() == SPConfig.SOURCE_KUWO) "酷我" else "网易云"
+        binding.tvConfigCatalog.text = when (SPConfig.catalogSource()) {
+            SPConfig.SOURCE_KUWO -> "酷我"
+            SPConfig.SOURCE_QQ -> "QQ音乐"
+            else -> "网易云"
+        }
 
         binding.tvConfigQuality.text =
             MusicBridge.getBridgeForLevel(SPConfig.currentBridge()).displayName
@@ -122,6 +155,7 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
     private fun initCatalogToggle() {
         updateCatalogButtons()
         binding.btnCatalogWy.setOnClickListener { selectCatalog(SPConfig.SOURCE_NETEASE) }
+        binding.btnCatalogQq.setOnClickListener { selectCatalog(SPConfig.SOURCE_QQ) }
         binding.btnCatalogKw.setOnClickListener { selectCatalog(SPConfig.SOURCE_KUWO) }
     }
 
@@ -132,14 +166,21 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         SPConfig.setCatalogSource(source)
         updateCatalogButtons()
         refreshSummary()
-        toast(if (source == SPConfig.SOURCE_KUWO) "已切换到酷我曲库，正在刷新首页" else "已切换到网易云曲库，正在刷新首页")
+        toast(
+            when (source) {
+                SPConfig.SOURCE_KUWO -> "已切换到酷我曲库，正在刷新首页"
+                SPConfig.SOURCE_QQ -> "已切换到 QQ 音乐曲库，正在刷新首页"
+                else -> "已切换到网易云曲库，正在刷新首页"
+            }
+        )
         reloadHomeWithNewCatalog()
     }
 
     private fun updateCatalogButtons() {
-        val kuwo = SPConfig.catalogSource() == SPConfig.SOURCE_KUWO
-        styleCatalogButton(binding.btnCatalogWy, !kuwo)
-        styleCatalogButton(binding.btnCatalogKw, kuwo)
+        val source = SPConfig.catalogSource()
+        styleCatalogButton(binding.btnCatalogWy, source == SPConfig.SOURCE_NETEASE)
+        styleCatalogButton(binding.btnCatalogQq, source == SPConfig.SOURCE_QQ)
+        styleCatalogButton(binding.btnCatalogKw, source == SPConfig.SOURCE_KUWO)
     }
 
     private fun styleCatalogButton(view: android.widget.TextView, selected: Boolean) {

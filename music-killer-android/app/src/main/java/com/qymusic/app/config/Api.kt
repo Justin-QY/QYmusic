@@ -97,6 +97,9 @@ object Api {
    */
   const val LYRIC = "/lyric"
 
+  /** QQ 音乐歌词 */
+  const val QQ_LYRIC = "/qq/lyric"
+
   /**
    * 音源脚本状态
    */
@@ -130,6 +133,16 @@ object Api {
   const val NETEASE_ARTISTS = "/netease/user/artists"
   const val NETEASE_LIKED = "/netease/user/liked"
 
+  /** QQ 音乐账号（云端） */
+  const val QQ_ACCOUNT = "/qq/user/account"
+  const val QQ_PLAYLISTS = "/qq/user/playlists"
+  const val QQ_LIKED = "/qq/user/liked"
+
+  /** 酷我账号（云端） */
+  const val KUWO_ACCOUNT = "/kuwo/user/account"
+  const val KUWO_PLAYLISTS = "/kuwo/user/playlists"
+  const val KUWO_LIKED = "/kuwo/user/liked"
+
   /**
    * 按当前曲库音源拼接接口路径。
    *
@@ -137,7 +150,10 @@ object Api {
    * 网易云走原路径（/rank/menu 等），酷我走服务端的 /kuwo 前缀（/kuwo/rank/menu 等）。
    * 歌曲 id 两边都是数字，切换后播放、歌词、收藏都能对上号。
    */
-  fun catalog(path: String): String =
-    if (SPConfig.catalogSource() == SPConfig.SOURCE_KUWO) "/kuwo$path" else path
+  fun catalog(path: String): String = when (SPConfig.catalogSource()) {
+    SPConfig.SOURCE_KUWO -> "/kuwo$path"
+    SPConfig.SOURCE_QQ -> "/qq$path"
+    else -> path
+  }
 
 }

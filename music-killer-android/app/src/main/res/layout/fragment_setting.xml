@@ -188,6 +188,17 @@
                             android:textColor="?attr/colorOnPrimary" />
 
                         <TextView
+                            android:id="@+id/btn_catalog_qq"
+                            android:layout_width="0dp"
+                            android:layout_height="match_parent"
+                            android:layout_weight="1"
+                            android:background="@android:color/transparent"
+                            android:gravity="center"
+                            android:text="QQ音乐"
+                            android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
+                            android:textColor="?attr/colorOnSurfaceVariant" />
+
+                        <TextView
                             android:id="@+id/btn_catalog_kw"
                             android:layout_width="0dp"
                             android:layout_height="match_parent"
@@ -829,6 +840,40 @@
                             android:text="清除" />
 
                     </LinearLayout>
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginStart="72dp"
+                        android:background="?attr/colorOutlineVariant" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="18dp"
+                        android:layout_marginTop="14dp"
+                        android:layout_marginEnd="18dp"
+                        android:text="底部导航"
+                        android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="18dp"
+                        android:layout_marginTop="2dp"
+                        android:layout_marginEnd="18dp"
+                        android:text="可隐藏不需要的模块，至少保留一个"
+                        android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+
+                    <LinearLayout
+                        android:id="@+id/ll_nav_modules"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="18dp"
+                        android:layout_marginEnd="18dp"
+                        android:orientation="vertical"
+                        android:paddingBottom="10dp" />
 
                 </LinearLayout>
 

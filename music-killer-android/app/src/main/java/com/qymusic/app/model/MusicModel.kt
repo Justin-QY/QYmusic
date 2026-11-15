@@ -31,6 +31,9 @@ data class MusicModel(
   var artist: String = "",
   @SerialName("source")
   var source: String = "kw",
+  /** 平台原始 ID（QQ 音乐的 songmid 等） */
+  @SerialName("sourceId")
+  var sourceId: String = "",
   @SerialName("pic")
   var pic: String = "",
   // @SerialName("isstar")

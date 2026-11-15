@@ -22,6 +22,84 @@ object SPConfig {
 
   const val SOURCE_NETEASE = "wy"
   const val SOURCE_KUWO = "kw"
+  const val SOURCE_QQ = "qq"
+
+  // ------------------------------------------------------------------ QQ / 酷我账号
+
+  const val QQ_COOKIE = "qq_cookie"
+  const val QQ_UIN = "qq_uin"
+  const val QQ_NICKNAME = "qq_nickname"
+  const val QQ_AVATAR = "qq_avatar"
+
+  const val KUWO_COOKIE = "kuwo_cookie"
+  const val KUWO_UID = "kuwo_uid"
+  const val KUWO_NICKNAME = "kuwo_nickname"
+  const val KUWO_AVATAR = "kuwo_avatar"
+
+  @JvmStatic
+  fun qqCookie(): String = QQ_COOKIE.getRequired("")
+
+  @JvmStatic
+  fun qqUin(): String = QQ_UIN.getRequired("")
+
+  fun qqNickname(): String = QQ_NICKNAME.getRequired("")
+
+  fun qqAvatar(): String = QQ_AVATAR.getRequired("")
+
+  fun isQqLoggedIn(): Boolean = qqCookie().isNotBlank()
+
+  fun saveQqLogin(cookie: String, uin: String, nickname: String, avatar: String) {
+    QQ_COOKIE put cookie
+    QQ_UIN put uin
+    QQ_NICKNAME put nickname
+    QQ_AVATAR put avatar
+  }
+
+  fun clearQqLogin() {
+    QQ_COOKIE put ""
+    QQ_UIN put ""
+    QQ_NICKNAME put ""
+    QQ_AVATAR put ""
+  }
+
+  fun kuwoCookie(): String = KUWO_COOKIE.getRequired("")
+
+  fun kuwoUid(): Long = KUWO_UID.getRequired(0L)
+
+  fun kuwoNickname(): String = KUWO_NICKNAME.getRequired("")
+
+  fun kuwoAvatar(): String = KUWO_AVATAR.getRequired("")
+
+  fun isKuwoLoggedIn(): Boolean = kuwoCookie().isNotBlank() && kuwoUid() > 0
+
+  fun saveKuwoLogin(cookie: String, uid: Long, nickname: String, avatar: String) {
+    KUWO_COOKIE put cookie
+    KUWO_UID put uid
+    KUWO_NICKNAME put nickname
+    KUWO_AVATAR put avatar
+  }
+
+  fun clearKuwoLogin() {
+    KUWO_COOKIE put ""
+    KUWO_UID put 0L
+    KUWO_NICKNAME put ""
+    KUWO_AVATAR put ""
+  }
+
+  // ------------------------------------------------------------------ 底部导航
+
+  const val NAV_HIDDEN = "nav_hidden"
+
+  fun hiddenNavKeys(): Set<String> =
+    NAV_HIDDEN.getRequired("").split(',').filter { it.isNotBlank() }.toSet()
+
+  fun isNavVisible(key: String): Boolean = key !in hiddenNavKeys()
+
+  fun setNavVisible(key: String, visible: Boolean) {
+    val keys = hiddenNavKeys().toMutableSet()
+    if (visible) keys.remove(key) else keys.add(key)
+    NAV_HIDDEN put keys.joinToString(",")
+  }
 
   /**
    * 第三方音源（默认关闭）

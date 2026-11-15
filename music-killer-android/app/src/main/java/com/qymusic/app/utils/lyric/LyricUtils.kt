@@ -23,23 +23,25 @@ object LyricUtils {
    */
   @JvmStatic
   suspend fun getLyricContent(musicModel: MusicModel): String {
-    if (musicModel.source == "wy") {
+    if (musicModel.source == "wy" || musicModel.source == "qq") {
+      val isQq = musicModel.source == "qq"
       return coroutineScope {
-        // 服务端接口返回的是 {code,msg,data}，data 里才是 LRC
         val fromServer = try {
+          val path = if (isQq) Api.QQ_LYRIC else Api.LYRIC
           parseWrappedLyric(
-            Get<String>("${Api.LYRIC}/${musicModel.id}") {
-              addQuery("translate", SPConfig.isShowTranslation())
+            Get<String>("$path/${musicModel.id}") {
+              addQuery("translate", !isQq && SPConfig.isShowTranslation())
+              if (isQq) addQuery("sourceId", musicModel.sourceId)
             }.await().orEmpty()
           )
         } catch (e: Exception) {
           ""
         }
-        if (fromServer.isNotBlank()) {
+        if (fromServer.isNotBlank() || isQq) {
           return@coroutineScope fromServer
         }
 
-        // 服务端没有歌词时，客户端直连网易云公开接口再试一次
+        // 网易云服务端没有歌词时，客户端直连公开接口再试一次
         try {
           val raw = Get<String>(NETEASE_LYRIC_URL) {
             addQuery("id", musicModel.id)

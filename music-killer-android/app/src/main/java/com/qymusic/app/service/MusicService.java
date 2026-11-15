@@ -439,6 +439,8 @@ public class MusicService extends MediaSessionService implements Player.Listener
             String singer = dataSpec.uri.getQueryParameter("singer");
             String album = dataSpec.uri.getQueryParameter("album");
             String duration = dataSpec.uri.getQueryParameter("duration");
+            String sourceId = dataSpec.uri.getQueryParameter("sourceId");
+            String qqCookie = dataSpec.uri.getQueryParameter("qqCookie");
 
             String cacheKey = source + "|" + id + "|" + bridge;
             String playUrl = null;
@@ -457,6 +459,12 @@ public class MusicService extends MediaSessionService implements Player.Listener
                     urlRequest.addQuery("id", id, false);
                     urlRequest.addQuery("bridge", bridge, false);
                     urlRequest.addQuery("source", source, false);
+                    if (sourceId != null && !sourceId.isEmpty()) {
+                        urlRequest.addQuery("sourceId", sourceId, false);
+                    }
+                    if (qqCookie != null && !qqCookie.isEmpty()) {
+                        urlRequest.addQuery("qqCookie", qqCookie, false);
+                    }
                     if (name != null && !name.isEmpty()) {
                         urlRequest.addQuery("name", name, false);
                     }

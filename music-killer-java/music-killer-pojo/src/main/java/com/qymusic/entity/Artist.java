@@ -33,4 +33,7 @@ public class Artist {
 
     private String pic300;
 
+    /** 平台原始 ID（QQ 音乐的 singerMID 等字符串 ID） */
+    private String sourceId;
+
 }
