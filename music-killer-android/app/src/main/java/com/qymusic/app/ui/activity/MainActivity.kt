@@ -75,6 +75,9 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
 
   private val bottomBarHeight = 68.dp
 
+  /** 迷你播放栏实际高度（布局完成后测量，避免被底部导航裁切） */
+  private var playerBarHeight = 72.dp
+
   /** 底部导航栏高度（首页 / 云端） */
   private val bottomNavHeight = 56.dp
 
@@ -302,6 +305,19 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
 
     val bottomBar = binding.bottomBar
     bottomBarBehavior = BottomSheetBehavior.from(bottomBar)
+    // 播放栏要盖在底部导航之上，否则导航会压住播放控件
+    bottomBar.elevation = 12.dp.toFloat()
+    binding.bottomNav.elevation = 0f
+    binding.playBar.post {
+      if (binding.playBar.height > 0) {
+        playerBarHeight = binding.playBar.height
+        bottomBarBehavior.peekHeight = playerBarHeight + bottomNavHeight + navigationBarInset
+        binding.bottomBar.updatePadding(bottom = bottomNavHeight + navigationBarInset)
+        binding.navHostFragment.updatePadding(
+          bottom = if (bottomBarVisible) playerBarHeight else 0
+        )
+      }
+    }
     // 用根布局接收 insets：播放栏隐藏时也能正确给底部导航和内容留出空间
     ViewCompat.setOnApplyWindowInsetsListener(binding.coordinator) { v, insets ->
       val navigationBarHeight =
@@ -309,14 +325,14 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
       navigationBarInset = navigationBarHeight
       val statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
       // 播放器叠在底部导航栏之上
-      bottomBarBehavior.peekHeight = bottomBarHeight + bottomNavHeight + navigationBarHeight
+      bottomBarBehavior.peekHeight = playerBarHeight + bottomNavHeight + navigationBarHeight
       binding.bottomNav.updatePadding(bottom = navigationBarHeight)
       binding.bottomBar.updatePadding(bottom = bottomNavHeight + navigationBarHeight)
       binding.navHostFragment.updateLayoutParams<ViewGroup.MarginLayoutParams> {
         bottomMargin = bottomNavHeight + navigationBarHeight
       }
       binding.navHostFragment.updatePadding(
-        bottom = if (bottomBarVisible) bottomBarHeight else 0
+        bottom = if (bottomBarVisible) playerBarHeight else 0
       )
       val lp = binding.mainPlayer.layoutParams as ViewGroup.MarginLayoutParams
       lp.topMargin = -(bottomBarHeight - statusBarHeight - 10.dp)
@@ -403,7 +419,7 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     bottomBarVisible = state.isVisible
     binding.bottomBar.visibility = if (state.isVisible) View.VISIBLE else View.GONE
     binding.navHostFragment.updatePadding(
-      bottom = if (state.isVisible) bottomBarHeight else 0
+      bottom = if (state.isVisible) playerBarHeight else 0
     )
 
     if (state.isVisible) {

@@ -143,6 +143,12 @@ object Api {
   const val KUWO_PLAYLISTS = "/kuwo/user/playlists"
   const val KUWO_LIKED = "/kuwo/user/liked"
 
+  /** 扫码登录 */
+  const val QR_NETEASE = "/login/qr/netease"
+  const val QR_NETEASE_POLL = "/login/qr/netease/poll"
+  const val QR_QQ = "/login/qr/qq"
+  const val QR_QQ_POLL = "/login/qr/qq/poll"
+
   /**
    * 按当前曲库音源拼接接口路径。
    *

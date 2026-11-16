@@ -83,12 +83,7 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         binding.chipQq.setOnClickListener { selectPlatform(PlatformLoginActivity.PLATFORM_QQ) }
         binding.chipKuwo.setOnClickListener { selectPlatform(PlatformLoginActivity.PLATFORM_KUWO) }
 
-        binding.btnLogin.setOnClickListener {
-            loginLauncher.launch(
-                Intent(requireContext(), PlatformLoginActivity::class.java)
-                    .putExtra(PlatformLoginActivity.EXTRA_PLATFORM, platform)
-            )
-        }
+        binding.btnLogin.setOnClickListener { showLoginDialog() }
         binding.btnLogout.setOnClickListener { logout() }
         binding.tvManualCookie.setOnClickListener { showManualCookieDialog() }
         binding.tvMoreLiked.setOnClickListener { openAll("liked") }
@@ -292,6 +287,134 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         PlatformLoginActivity.PLATFORM_QQ -> SPConfig.qqAvatar()
         PlatformLoginActivity.PLATFORM_KUWO -> SPConfig.kuwoAvatar()
         else -> SPConfig.neteaseAvatar()
+    }
+
+    /**
+     * 登录弹窗：扫码 / 网页登录 / Cookie 三种方式。
+     * 酷我官方插件没有扫码，只保留网页与 Cookie。
+     */
+    private fun showLoginDialog() {
+        val view = com.qymusic.app.databinding.DialogLoginBinding.inflate(layoutInflater)
+        val dialog = android.app.Dialog(requireContext())
+        dialog.requestWindowFeature(android.view.Window.FEATURE_NO_TITLE)
+        dialog.setContentView(view.root)
+        dialog.window?.apply {
+            setBackgroundDrawable(
+                android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
+            )
+            val width = (resources.displayMetrics.widthPixels * 0.92f).toInt()
+            setLayout(width, android.view.ViewGroup.LayoutParams.WRAP_CONTENT)
+        }
+
+        val isKuwo = platform == PlatformLoginActivity.PLATFORM_KUWO
+        view.tvLoginTitle.text = "登录" + platformName()
+        if (isKuwo) {
+            view.btnMethodQr.visibility = View.GONE
+        }
+        view.toggleLoginMethod.check(
+            if (isKuwo) R.id.btn_method_web else R.id.btn_method_qr
+        )
+        view.groupQr.visibility = if (isKuwo) View.GONE else View.VISIBLE
+        view.groupWeb.visibility = if (isKuwo) View.VISIBLE else View.GONE
+
+        view.toggleLoginMethod.addOnButtonCheckedListener { _, checkedId, isChecked ->
+            if (!isChecked) {
+                return@addOnButtonCheckedListener
+            }
+            view.groupQr.visibility = if (checkedId == R.id.btn_method_qr) View.VISIBLE else View.GONE
+            view.groupWeb.visibility = if (checkedId == R.id.btn_method_web) View.VISIBLE else View.GONE
+            view.groupCookie.visibility = if (checkedId == R.id.btn_method_cookie) View.VISIBLE else View.GONE
+            if (checkedId == R.id.btn_method_qr) {
+                loadQr(view, dialog)
+            } else {
+                qrJob?.cancel()
+            }
+        }
+
+        view.btnQrRefresh.setOnClickListener { loadQr(view, dialog) }
+        view.btnOpenWeb.setOnClickListener {
+            dialog.dismiss()
+            loginLauncher.launch(
+                Intent(requireContext(), PlatformLoginActivity::class.java)
+                    .putExtra(PlatformLoginActivity.EXTRA_PLATFORM, platform)
+            )
+        }
+        view.btnSaveCookie.setOnClickListener {
+            val cookie = view.etCookie.text.toString().trim()
+            if (cookie.isBlank()) {
+                toast("Cookie 不能为空")
+                return@setOnClickListener
+            }
+            saveManualCookie(cookie)
+            dialog.dismiss()
+        }
+        view.btnLoginCancel.setOnClickListener { dialog.dismiss() }
+        dialog.setOnDismissListener { qrJob?.cancel() }
+        dialog.show()
+
+        if (!isKuwo) {
+            loadQr(view, dialog)
+        }
+    }
+
+    private var qrJob: kotlinx.coroutines.Job? = null
+
+    private fun loadQr(
+        view: com.qymusic.app.databinding.DialogLoginBinding,
+        dialog: android.app.Dialog,
+    ) {
+        qrJob?.cancel()
+        view.tvQrStatus.text = "正在获取二维码…"
+        val isQq = platform == PlatformLoginActivity.PLATFORM_QQ
+        qrJob = viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val data = Get<com.qymusic.app.model.QrCreate>(
+                    if (isQq) Api.QR_QQ else Api.QR_NETEASE
+                ).await()
+                val bitmap = decodeQr(data.image)
+                if (bitmap == null) {
+                    view.tvQrStatus.text = "二维码解析失败"
+                    return@launch
+                }
+                view.imgQr.setImageBitmap(bitmap)
+                view.tvQrStatus.text = "请使用" + platformName() + "扫码"
+
+                val id = if (isQq) data.qrsig else data.key
+                while (true) {
+                    kotlinx.coroutines.delay(2000)
+                    val poll = Get<com.qymusic.app.model.QrPoll>(
+                        if (isQq) Api.QR_QQ_POLL else Api.QR_NETEASE_POLL
+                    ) {
+                        addQuery(if (isQq) "qrsig" else "key", id)
+                    }.await()
+                    when (poll.status) {
+                        "success" -> {
+                            saveManualCookie(poll.cookie)
+                            dialog.dismiss()
+                            return@launch
+                        }
+                        "scanned" -> view.tvQrStatus.text = "已扫码，请在手机上确认"
+                        "expired" -> {
+                            view.tvQrStatus.text = "二维码已过期，请刷新"
+                            return@launch
+                        }
+                        "failed" -> {
+                            view.tvQrStatus.text = "登录已取消"
+                            return@launch
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                view.tvQrStatus.text = "二维码获取失败：" + (e.message ?: "网络异常")
+            }
+        }
+    }
+
+    private fun decodeQr(base64: String): android.graphics.Bitmap? = try {
+        val bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
+        android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+    } catch (e: Exception) {
+        null
     }
 
     override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {
