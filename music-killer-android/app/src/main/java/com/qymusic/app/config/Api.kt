@@ -86,6 +86,9 @@ object Api {
   /** 酷我搜索（备用） */
   const val SEARCH_KUWO = "/search/kuwo"
 
+  /** QQ 音乐搜索 */
+  const val SEARCH_QQ = "/qq/search"
+
   const val SEARCH_ALBUM = "/search/album"
 
   const val SEARCH_PLAYLIST = "/search/playlist"

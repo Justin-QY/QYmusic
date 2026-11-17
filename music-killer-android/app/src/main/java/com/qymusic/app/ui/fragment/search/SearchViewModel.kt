@@ -74,9 +74,12 @@ class SearchViewModel : ViewModel() {
     }.stateIn(viewModelScope, SharingStarted.Lazily, true)
 
   private suspend fun getSearchSuggestList(keyword: String = "") = coroutineScope {
-    val result = Get<List<String>>(Api.catalog(Api.SEARCH_KEYWORD)) {
-      addQuery("key", keyword)
-    }.await()
+    // 热词/联想接口是可选项：某个曲库没有实现时不应让整个搜索流程中断
+    val result = runCatching {
+      Get<List<String>>(Api.catalog(Api.SEARCH_KEYWORD)) {
+        addQuery("key", keyword)
+      }.await()
+    }.getOrDefault(emptyList())
     if (!keyword.isEmpty()) {
       result.map {
         val regex = "RELWORD=(.*?)\\r\\n".toRegex()

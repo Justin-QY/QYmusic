@@ -46,10 +46,6 @@
         <activity android:name=".ui.activity.CrashActivity" />
 
         <activity
-            android:name=".ui.activity.NeteaseLoginActivity"
-            android:exported="false" />
-
-        <activity
             android:name=".ui.activity.PlatformLoginActivity"
             android:exported="false" />
 

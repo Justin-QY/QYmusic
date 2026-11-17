@@ -74,6 +74,7 @@
                 android:orientation="vertical">
 
                 <TextView
+                    android:id="@+id/tv_login_card_title"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:text="登录网易云账号"
@@ -81,6 +82,7 @@
                     android:textStyle="bold" />
 
                 <TextView
+                    android:id="@+id/tv_login_card_desc"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
@@ -97,17 +99,6 @@
                     android:insetTop="0dp"
                     android:insetBottom="0dp"
                     android:text="登录网易云" />
-
-                <TextView
-                    android:id="@+id/tv_manual_cookie"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:paddingTop="4dp"
-                    android:paddingBottom="4dp"
-                    android:text="网页登录失败？手动填写 Cookie"
-                    android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
-                    android:textColor="?attr/colorPrimary" />
 
             </LinearLayout>
 
@@ -262,6 +253,7 @@
                 android:overScrollMode="never" />
 
             <LinearLayout
+                android:id="@+id/row_artists"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="22dp"

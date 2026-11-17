@@ -144,7 +144,7 @@ abstract class BaseMusicNavFragment<V : ViewDataBinding>(@LayoutRes contentLayou
    */
   protected open fun onMusicModelChanged(musicModel: MusicModel) {
     eachMusicModels {
-      if (it.id == musicModel.id) {
+      if (it.id == musicModel.id && it.source == musicModel.source) {
         it.isSelected = true
       } else if (it.isSelected) {
         it.isSelected = false

@@ -75,12 +75,19 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
                 isChecked = SPConfig.isNavVisible(module.key)
                 setPadding(0, (6 * density).toInt(), 0, (6 * density).toInt())
             }
+            // 回滚开关时会再次触发监听，用这个标记避免误存配置 / 重建界面
+            var reverting = false
             switch.setOnCheckedChangeListener { _, checked ->
-                if (!checked && com.qymusic.app.config.NavModules.ALL.count {
-                        SPConfig.isNavVisible(it.key)
-                    } <= 1
-                ) {
+                if (reverting) {
+                    return@setOnCheckedChangeListener
+                }
+                val visibleCount = com.qymusic.app.config.NavModules.ALL.count {
+                    SPConfig.isNavVisible(it.key)
+                }
+                if (!checked && visibleCount <= 1) {
+                    reverting = true
                     switch.isChecked = true
+                    reverting = false
                     toast("至少保留一个导航栏")
                     return@setOnCheckedChangeListener
                 }

@@ -68,7 +68,8 @@ class PlatformLoginActivity : AppCompatActivity() {
                     "https://www.kuwo.cn", "https://kuwo.cn",
                     "https://m.kuwo.cn", "https://passport.kuwo.cn"
                 ),
-                listOf("kw_token="),
+                // kw_token 匿名访客也有，不能当作已登录；用 userid 判断
+                listOf("userid="),
                 Api.KUWO_ACCOUNT,
                 true
             ),
@@ -87,6 +88,8 @@ class PlatformLoginActivity : AppCompatActivity() {
     private lateinit var config: LoginConfig
     private lateinit var platform: String
     private var handled = false
+    private var lastAttemptAt = 0L
+    private var pollRunnable: Runnable? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -128,25 +131,42 @@ class PlatformLoginActivity : AppCompatActivity() {
                 request: WebResourceRequest?
             ): WebResourceResponse? {
                 val cookieHeader = request?.requestHeaders?.get("Cookie")
+                // 只把请求头当触发信号：真正保存的是合并后的完整 Cookie，
+                // 避免只拿到某个子域的半截 Cookie 导致换账号信息失败
                 if (!cookieHeader.isNullOrBlank() && matchesCookie(cookieHeader)) {
-                    handleCookie(cookieHeader)
+                    checkCookie()
                 }
                 return super.shouldInterceptRequest(view, request)
             }
         }
 
         binding.webView.loadUrl(config.url)
-
-        binding.webView.postDelayed(object : Runnable {
-            override fun run() {
-                checkCookie()
-                binding.webView.postDelayed(this, 600)
-            }
-        }, 600)
+        startCookiePolling()
     }
 
-    private fun matchesCookie(cookie: String): Boolean =
-        config.cookieKeys.any { cookie.contains(it) }
+    private fun startCookiePolling() {
+        val runnable = object : Runnable {
+            override fun run() {
+                checkCookie()
+                binding.webView.postDelayed(this, 800)
+            }
+        }
+        pollRunnable = runnable
+        binding.webView.postDelayed(runnable, 800)
+    }
+
+    private fun matchesCookie(cookie: String): Boolean {
+        if (config.cookieKeys.none { cookie.contains(it) }) {
+            return false
+        }
+        // 酷我退出登录后仍会保留 userid=0，需要排除
+        if (platform == PLATFORM_KUWO) {
+            val uid = Regex("(?:^|;\\s*)userid=(\\d+)").find(cookie)
+                ?.groupValues?.get(1)?.toLongOrNull() ?: 0L
+            return uid > 0
+        }
+        return true
+    }
 
     /** QQ/酷我的登录 Cookie 分散在多个子域，需要合并读取 */
     private fun readCookies(): String {
@@ -179,7 +199,13 @@ class PlatformLoginActivity : AppCompatActivity() {
         if (handled) {
             return
         }
+        // 登录过程中 Cookie 会逐步补齐，失败后 3 秒内不重复请求，避免刷屏
+        val now = System.currentTimeMillis()
+        if (now - lastAttemptAt < 3000) {
+            return
+        }
         handled = true
+        lastAttemptAt = now
         binding.progress.visibility = android.view.View.VISIBLE
         lifecycleScope.launch {
             try {
@@ -197,7 +223,7 @@ class PlatformLoginActivity : AppCompatActivity() {
                         cookie, account.userId, account.nickname, account.avatarUrl
                     )
                 }
-                toast("登录成功")
+                toast("登录成功" + if (account.nickname.isBlank()) "" else "：" + account.nickname)
                 setResult(RESULT_OK)
                 // 登录凭据已经拿到，清掉 WebView 里的会话，避免切换账号时复用
                 CookieManager.getInstance().removeAllCookies(null)
@@ -206,12 +232,14 @@ class PlatformLoginActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 handled = false
                 binding.progress.visibility = android.view.View.GONE
-                toast(e.message ?: "登录失败，请重试")
+                toast("账号信息获取失败，请确认已登录完成")
             }
         }
     }
 
     override fun onDestroy() {
+        pollRunnable?.let { binding.webView.removeCallbacks(it) }
+        pollRunnable = null
         binding.webView.stopLoading()
         binding.webView.destroy()
         super.onDestroy()

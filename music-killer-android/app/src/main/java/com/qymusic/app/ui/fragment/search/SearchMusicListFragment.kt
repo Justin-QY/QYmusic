@@ -22,8 +22,12 @@ import com.qymusic.app.model.setupMusicRv
 class SearchMusicListFragment :
         BaseSearchListFragment<FragmentSearchMusicListBinding>(R.layout.fragment_search_music_list) {
 
-  /** 当前搜索音源：wy=网易云，kw=酷我 */
-  private var searchSource = SPConfig.catalogSource()
+  /** 当前搜索音源：wy=网易云，qq=QQ音乐，kw=酷我 */
+  private var searchSource = when (SPConfig.catalogSource()) {
+    SPConfig.SOURCE_KUWO -> SPConfig.SOURCE_KUWO
+    SPConfig.SOURCE_QQ -> SPConfig.SOURCE_QQ
+    else -> SPConfig.SOURCE_NETEASE
+  }
 
   override fun getMusicModels(): List<Any?>? {
     return binding.rvMusic.models
@@ -32,14 +36,22 @@ class SearchMusicListFragment :
   override fun initView() {
     // 默认跟随设置页的「曲库音源」
     binding.toggleSource.check(
-      if (searchSource == SPConfig.SOURCE_KUWO) R.id.btn_source_kw else R.id.btn_source_wy
+      when (searchSource) {
+        SPConfig.SOURCE_KUWO -> R.id.btn_source_kw
+        SPConfig.SOURCE_QQ -> R.id.btn_source_qq
+        else -> R.id.btn_source_wy
+      }
     )
 
     binding.toggleSource.addOnButtonCheckedListener { _, checkedId, isChecked ->
       if (!isChecked) {
         return@addOnButtonCheckedListener
       }
-      val source = if (checkedId == R.id.btn_source_wy) "wy" else "kw"
+      val source = when (checkedId) {
+        R.id.btn_source_kw -> SPConfig.SOURCE_KUWO
+        R.id.btn_source_qq -> SPConfig.SOURCE_QQ
+        else -> SPConfig.SOURCE_NETEASE
+      }
       if (source == searchSource) {
         return@addOnButtonCheckedListener
       }
@@ -54,7 +66,12 @@ class SearchMusicListFragment :
 
     binding.page.onRefresh {
       scope {
-        val url = if (searchSource == "wy") Api.SEARCH_NETEASE else Api.SEARCH_KUWO
+        // 三条曲库的歌曲搜索接口路径并不统一，QQ 走 /qq/search
+        val url = when (searchSource) {
+          SPConfig.SOURCE_KUWO -> Api.SEARCH_KUWO
+          SPConfig.SOURCE_QQ -> Api.SEARCH_QQ
+          else -> Api.SEARCH_NETEASE
+        }
         val result = Get<Page<MusicModel>>(url) {
           addQuery("keyword", keyword)
           addQuery("pageNo", index)

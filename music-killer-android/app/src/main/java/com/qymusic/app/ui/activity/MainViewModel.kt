@@ -96,7 +96,8 @@ class MainViewModel : ViewModel() {
   }
 
   suspend fun getMusicModelState(model: MusicModel) {
-    model.isSelected = _musicModel.value.id == model.id
+    // 三个曲库的 id 可能撞号，判断「正在播放」时要同时比对来源
+    model.isSelected = _musicModel.value.id == model.id && _musicModel.value.source == model.source
     model.isFavorite = isFavoriteMusic(model)
   }
 
