@@ -540,26 +540,58 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         }
         viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val account = Get<com.qymusic.app.model.PlatformAccount>(api) {
-                    addQuery("cookie", cookie)
-                }.await()
-                when (target) {
-                    PlatformLoginActivity.PLATFORM_QQ -> SPConfig.saveQqLogin(
-                        cookie, account.userId.toString(), account.nickname, account.avatarUrl
-                    )
-                    PlatformLoginActivity.PLATFORM_KUGOU -> SPConfig.saveKugouLogin(
-                        cookie, account.userId, account.nickname, account.avatarUrl
-                    )
-                    else -> SPConfig.saveNeteaseLogin(
-                        cookie, account.userId, account.nickname, account.avatarUrl
-                    )
+                // 账号信息接口偶发失败（QQ 资料接口/酷狗网关风控）时，只要 Cookie 里有 uid
+                // 也先把登录态保存下来，避免“刚登录就提示过期”，播放/歌单仍可继续用
+                val account = try {
+                    Get<com.qymusic.app.model.PlatformAccount>(api) {
+                        addQuery("cookie", cookie)
+                    }.await()
+                } catch (e: kotlinx.coroutines.CancellationException) {
+                    throw e
+                } catch (e: Exception) {
+                    null
                 }
+
+                if (account != null) {
+                    when (target) {
+                        PlatformLoginActivity.PLATFORM_QQ -> SPConfig.saveQqLogin(
+                            cookie, account.userId.toString(), account.nickname, account.avatarUrl
+                        )
+                        PlatformLoginActivity.PLATFORM_KUGOU -> SPConfig.saveKugouLogin(
+                            cookie, account.userId, account.nickname, account.avatarUrl
+                        )
+                        else -> SPConfig.saveNeteaseLogin(
+                            cookie, account.userId, account.nickname, account.avatarUrl
+                        )
+                    }
+                } else {
+                    val uid = uidFromCookie(target, cookie)
+                    if (uid <= 0L) {
+                        toast("Cookie 无效或已过期")
+                        onResult(false)
+                        return@launch
+                    }
+                    when (target) {
+                        PlatformLoginActivity.PLATFORM_QQ -> SPConfig.saveQqLogin(
+                            cookie, uid.toString(), "QQ用户", ""
+                        )
+                        PlatformLoginActivity.PLATFORM_KUGOU -> SPConfig.saveKugouLogin(
+                            cookie, uid, "酷狗用户", ""
+                        )
+                        else -> {
+                            toast("Cookie 无效或已过期")
+                            onResult(false)
+                            return@launch
+                        }
+                    }
+                }
+
                 invalidateData()
                 // 登录的是当前选中的平台才立刻刷新，否则等切过去再加载
                 if (platform == target) {
                     refreshUi()
                 }
-                toast("登录成功" + if (account.nickname.isBlank()) "" else "：" + account.nickname)
+                toast("登录成功" + if (account?.nickname.isNullOrBlank()) "" else "：" + account.nickname)
                 onResult(true)
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
@@ -568,5 +600,29 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
                 onResult(false)
             }
         }
+    }
+
+    /** 从 Cookie 中兜底解析 uid（QQ 的 uin/musicid、酷狗的 userid/KugooID） */
+    private fun uidFromCookie(target: String, cookie: String): Long {
+        val keys = when (target) {
+            PlatformLoginActivity.PLATFORM_QQ -> listOf("uin", "musicid")
+            PlatformLoginActivity.PLATFORM_KUGOU -> listOf("userid", "KugooID")
+            else -> listOf("userId", "userid")
+        }
+        for (part in cookie.split(";")) {
+            val kv = part.trim().split("=", limit = 2)
+            if (kv.size != 2) {
+                continue
+            }
+            if (keys.none { it.equals(kv[0].trim(), ignoreCase = true) }) {
+                continue
+            }
+            val digits = kv[1].filter { it.isDigit() }
+            val uid = digits.toLongOrNull() ?: 0L
+            if (uid > 0L) {
+                return uid
+            }
+        }
+        return 0L
     }
 }

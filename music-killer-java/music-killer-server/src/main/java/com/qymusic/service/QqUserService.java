@@ -45,14 +45,19 @@ public class QqUserService {
         }
         JsonNode root = qqMusicClient.profile(cookie, uin, musicKey);
         JsonNode creator = root == null ? null : root.path("data").path("creator");
-        if (creator == null || creator.isMissingNode() || creator.isNull()) {
-            return Result.error("QQ 登录已失效，请重新登录");
-        }
         Map<String, Object> data = new LinkedHashMap<>();
         try {
             data.put("userId", Long.parseLong(uin));
         } catch (Exception e) {
             data.put("userId", 0L);
+        }
+        // 资料接口偶发失败时不要直接判定登录失效：只要 uin 在，登录态仍然有效，
+        // 先返回兜底昵称，播放/歌单接口仍可继续使用
+        if (creator == null || creator.isMissingNode() || creator.isNull()) {
+            log.info("QQ 资料接口无 creator，使用兜底账号信息 uin={}", uin);
+            data.put("nickname", "QQ用户");
+            data.put("avatarUrl", "");
+            return Result.success(data);
         }
         data.put("nickname", creator.path("nick").asText(
                 creator.path("nickname").asText("QQ 用户")));

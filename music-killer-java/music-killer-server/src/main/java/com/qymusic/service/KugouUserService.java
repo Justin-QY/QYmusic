@@ -71,8 +71,11 @@ public class KugouUserService {
         body.put("type", 2);
         body.put("page", 1);
         body.put("pagesize", 50);
-        JsonNode root = kugouClient.gatewayPost("/v7/get_all_list", body, null, cookie,
-                "cloudlist.service.kugou.com");
+        JsonNode root = kugouClient.gatewayPost("/v7/get_all_list", body,
+                java.util.Map.of("plat", "1"), cookie, "cloudlist.service.kugou.com");
+        if (root == null) {
+            log.warn("酷狗云歌单接口无响应 userid={}", userId);
+        }
         JsonNode list = root == null ? null : root.path("data").path("info");
         List<PlayList> playlists = new ArrayList<>();
         if (list != null && list.isArray()) {
