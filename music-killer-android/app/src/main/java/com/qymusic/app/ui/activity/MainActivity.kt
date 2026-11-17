@@ -86,6 +86,9 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
   /** 底部播放栏当前是否可见（没有开始播放歌曲时隐藏） */
   private var bottomBarVisible = false
 
+  /** 底部导航栏是否显示：只剩一个模块时隐藏整条导航 */
+  private var bottomNavVisible = true
+
   var _downloadService: DownloadService? = null
 
   private val onBackPressedCallback = object : OnBackPressedCallback(false) {
@@ -236,6 +239,8 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
 
     navController.addOnDestinationChangedListener { controller, destination, arguments ->
       mainViewModel.changeBottomBarVisible(destination.shouldShowBottomNav())
+      // 返回到已被隐藏的模块时（例如设置页返回云端），自动切到仍显示的模块
+      binding.bottomNav.post { ensureVisibleDestination(controller) }
     }
 
     // 底部导航：按注册表动态生成（可在设置里隐藏模块）
@@ -244,12 +249,16 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
 
   /**
    * 根据 NavModules 注册表生成底部导航；设置页隐藏模块后重建 Activity 生效。
+   *
+   * 只剩一个模块时整条导航栏隐藏（单入口没有切换意义），内容区补回被导航占用的高度。
    */
   private fun rebuildBottomNav(navController: androidx.navigation.NavController) {
+    // 老版本可能把模块全部隐藏，兜底为全部显示，避免出现空导航
     val visible = com.qymusic.app.config.NavModules.visible()
-    if (visible.isEmpty()) {
-      return
-    }
+      .ifEmpty { com.qymusic.app.config.NavModules.ALL }
+    bottomNavVisible = visible.size > 1
+    binding.bottomNav.visibility = if (bottomNavVisible) View.VISIBLE else View.GONE
+
     val menu = binding.bottomNav.menu
     menu.clear()
     visible.forEach { module ->
@@ -257,12 +266,54 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     }
     binding.bottomNav.setupWithNavController(navController)
 
+    // 当前停留在被隐藏的模块（例如隐藏首页后仍停在首页）时，切到第一个可见模块
+    ensureVisibleDestination(navController)
+    // 导航状态恢复可能晚于 onCreate，再补一次检查
+    binding.bottomNav.post { ensureVisibleDestination(navController) }
+
+    applyBottomMetrics()
+  }
+
+  /**
+   * 如果当前页面是被隐藏的底部导航模块，跳到第一个可见模块。
+   * 设置页、歌单详情等普通页面不受影响。
+   */
+  private fun ensureVisibleDestination(navController: androidx.navigation.NavController) {
+    val visible = com.qymusic.app.config.NavModules.visible()
+      .ifEmpty { com.qymusic.app.config.NavModules.ALL }
     val current = navController.currentDestination?.id
-    if (com.qymusic.app.config.NavModules.find(current ?: -1) != null &&
+    val currentIsHiddenModule = com.qymusic.app.config.NavModules.find(current ?: -1) != null &&
       visible.none { it.id == current }
-    ) {
-      navController.navigate(visible.first().id)
+    if (current != null && !currentIsHiddenModule) {
+      return
     }
+    runCatching {
+      val options = androidx.navigation.NavOptions.Builder()
+        .setPopUpTo(navController.graph.startDestinationId, true)
+        .setLaunchSingleTop(true)
+        .build()
+      navController.navigate(visible.first().id, null, options)
+    }
+  }
+
+  /**
+   * 按「导航栏是否显示 + 系统导航条高度 + 迷你播放栏高度」重新计算底部留白。
+   *
+   * 导航栏隐藏时不再给 56dp 预留，否则内容底部会多出一条空白。
+   */
+  private fun applyBottomMetrics() {
+    if (!this::bottomBarBehavior.isInitialized) {
+      return
+    }
+    val navReserve = if (bottomNavVisible) bottomNavHeight else 0
+    bottomBarBehavior.peekHeight = playerBarHeight + navReserve + navigationBarInset
+    binding.bottomBar.updatePadding(bottom = navReserve + navigationBarInset)
+    binding.navHostFragment.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+      bottomMargin = navReserve + navigationBarInset
+    }
+    binding.navHostFragment.updatePadding(
+      bottom = if (bottomBarVisible) playerBarHeight else 0
+    )
   }
 
   override fun onClick(v: View) {
@@ -311,11 +362,7 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     binding.playBar.post {
       if (binding.playBar.height > 0) {
         playerBarHeight = binding.playBar.height
-        bottomBarBehavior.peekHeight = playerBarHeight + bottomNavHeight + navigationBarInset
-        binding.bottomBar.updatePadding(bottom = bottomNavHeight + navigationBarInset)
-        binding.navHostFragment.updatePadding(
-          bottom = if (bottomBarVisible) playerBarHeight else 0
-        )
+        applyBottomMetrics()
       }
     }
     // 用根布局接收 insets：播放栏隐藏时也能正确给底部导航和内容留出空间
@@ -324,16 +371,8 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
         insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
       navigationBarInset = navigationBarHeight
       val statusBarHeight = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
-      // 播放器叠在底部导航栏之上
-      bottomBarBehavior.peekHeight = playerBarHeight + bottomNavHeight + navigationBarHeight
       binding.bottomNav.updatePadding(bottom = navigationBarHeight)
-      binding.bottomBar.updatePadding(bottom = bottomNavHeight + navigationBarHeight)
-      binding.navHostFragment.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-        bottomMargin = bottomNavHeight + navigationBarHeight
-      }
-      binding.navHostFragment.updatePadding(
-        bottom = if (bottomBarVisible) playerBarHeight else 0
-      )
+      applyBottomMetrics()
       val lp = binding.mainPlayer.layoutParams as ViewGroup.MarginLayoutParams
       lp.topMargin = -(bottomBarHeight - statusBarHeight - 10.dp)
       insets
