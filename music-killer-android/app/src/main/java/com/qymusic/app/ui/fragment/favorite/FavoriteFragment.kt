@@ -36,7 +36,7 @@ class FavoriteFragment :
             artist = it.author,
             artistId = it.authorId,
             duration = it.duration,
-            source = it.source ?: "kw"
+            source = it.source ?: "wy"
           )
         }
       }.also {

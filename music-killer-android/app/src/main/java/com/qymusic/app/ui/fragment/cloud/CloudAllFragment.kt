@@ -66,12 +66,12 @@ class CloudAllFragment : BaseMusicAppbarFragment<FragmentCloudAllBinding>(R.layo
     private fun load() {
         val cookie = when (platform) {
             PlatformLoginActivity.PLATFORM_QQ -> SPConfig.qqCookie()
-            PlatformLoginActivity.PLATFORM_KUWO -> SPConfig.kuwoCookie()
+            PlatformLoginActivity.PLATFORM_KUGOU -> SPConfig.kugouCookie()
             else -> SPConfig.neteaseCookie()
         }
         val uid = when (platform) {
             PlatformLoginActivity.PLATFORM_QQ -> SPConfig.qqUin().toLongOrNull() ?: 0L
-            PlatformLoginActivity.PLATFORM_KUWO -> SPConfig.kuwoUid()
+            PlatformLoginActivity.PLATFORM_KUGOU -> SPConfig.kugouUid()
             else -> SPConfig.neteaseUid()
         }
         val isNetease = platform == PlatformLoginActivity.PLATFORM_NETEASE
@@ -82,7 +82,7 @@ class CloudAllFragment : BaseMusicAppbarFragment<FragmentCloudAllBinding>(R.layo
                     "liked" -> {
                         val url = when (platform) {
                             PlatformLoginActivity.PLATFORM_QQ -> Api.QQ_LIKED
-                            PlatformLoginActivity.PLATFORM_KUWO -> Api.KUWO_LIKED
+                            PlatformLoginActivity.PLATFORM_KUGOU -> Api.KUGOU_LIKED
                             else -> Api.NETEASE_LIKED
                         }
                         val list = Get<List<MusicModel>>(url) {
@@ -100,7 +100,7 @@ class CloudAllFragment : BaseMusicAppbarFragment<FragmentCloudAllBinding>(R.layo
                     "playlists" -> {
                         val url = when (platform) {
                             PlatformLoginActivity.PLATFORM_QQ -> Api.QQ_PLAYLISTS
-                            PlatformLoginActivity.PLATFORM_KUWO -> Api.KUWO_PLAYLISTS
+                            PlatformLoginActivity.PLATFORM_KUGOU -> Api.KUGOU_PLAYLISTS
                             else -> Api.NETEASE_PLAYLISTS
                         }
                         val list = Get<List<PlayListModel>>(url) {

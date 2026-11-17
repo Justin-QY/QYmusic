@@ -16,25 +16,25 @@ object SPConfig {
   const val TERMS_AGREED = "terms_agreed"
 
   /**
-   * 曲库音源：wy=网易云，kw=酷我
+   * 曲库音源：wy=网易云，kg=酷狗概念版，qq=QQ 音乐
    */
   const val CATALOG_SOURCE = "catalog_source"
 
   const val SOURCE_NETEASE = "wy"
-  const val SOURCE_KUWO = "kw"
+  const val SOURCE_KUGOU = "kg"
   const val SOURCE_QQ = "qq"
 
-  // ------------------------------------------------------------------ QQ / 酷我账号
+  // ------------------------------------------------------------------ QQ / 酷狗账号
 
   const val QQ_COOKIE = "qq_cookie"
   const val QQ_UIN = "qq_uin"
   const val QQ_NICKNAME = "qq_nickname"
   const val QQ_AVATAR = "qq_avatar"
 
-  const val KUWO_COOKIE = "kuwo_cookie"
-  const val KUWO_UID = "kuwo_uid"
-  const val KUWO_NICKNAME = "kuwo_nickname"
-  const val KUWO_AVATAR = "kuwo_avatar"
+  const val KUGOU_COOKIE = "kugou_cookie"
+  const val KUGOU_UID = "kugou_uid"
+  const val KUGOU_NICKNAME = "kugou_nickname"
+  const val KUGOU_AVATAR = "kugou_avatar"
 
   @JvmStatic
   fun qqCookie(): String = QQ_COOKIE.getRequired("")
@@ -62,28 +62,28 @@ object SPConfig {
     QQ_AVATAR put ""
   }
 
-  fun kuwoCookie(): String = KUWO_COOKIE.getRequired("")
+  fun kugouCookie(): String = KUGOU_COOKIE.getRequired("")
 
-  fun kuwoUid(): Long = KUWO_UID.getRequired(0L)
+  fun kugouUid(): Long = KUGOU_UID.getRequired(0L)
 
-  fun kuwoNickname(): String = KUWO_NICKNAME.getRequired("")
+  fun kugouNickname(): String = KUGOU_NICKNAME.getRequired("")
 
-  fun kuwoAvatar(): String = KUWO_AVATAR.getRequired("")
+  fun kugouAvatar(): String = KUGOU_AVATAR.getRequired("")
 
-  fun isKuwoLoggedIn(): Boolean = kuwoCookie().isNotBlank() && kuwoUid() > 0
+  fun isKugouLoggedIn(): Boolean = kugouCookie().isNotBlank() && kugouUid() > 0
 
-  fun saveKuwoLogin(cookie: String, uid: Long, nickname: String, avatar: String) {
-    KUWO_COOKIE put cookie
-    KUWO_UID put uid
-    KUWO_NICKNAME put nickname
-    KUWO_AVATAR put avatar
+  fun saveKugouLogin(cookie: String, uid: Long, nickname: String, avatar: String) {
+    KUGOU_COOKIE put cookie
+    KUGOU_UID put uid
+    KUGOU_NICKNAME put nickname
+    KUGOU_AVATAR put avatar
   }
 
-  fun clearKuwoLogin() {
-    KUWO_COOKIE put ""
-    KUWO_UID put 0L
-    KUWO_NICKNAME put ""
-    KUWO_AVATAR put ""
+  fun clearKugouLogin() {
+    KUGOU_COOKIE put ""
+    KUGOU_UID put 0L
+    KUGOU_NICKNAME put ""
+    KUGOU_AVATAR put ""
   }
 
   // ------------------------------------------------------------------ 底部导航
@@ -200,9 +200,13 @@ object SPConfig {
   }
 
   /**
-   * 当前曲库音源（默认网易云）
+   * 当前曲库音源（默认网易云）。
+   * 老版本保存过 "kw"，该音源已下线，读到后自动回到网易云。
    */
-  fun catalogSource(): String = CATALOG_SOURCE.getRequired(SOURCE_NETEASE)
+  fun catalogSource(): String {
+    val source = CATALOG_SOURCE.getRequired(SOURCE_NETEASE)
+    return if (source == "kw") SOURCE_NETEASE else source
+  }
 
   fun setCatalogSource(source: String) {
     CATALOG_SOURCE put source

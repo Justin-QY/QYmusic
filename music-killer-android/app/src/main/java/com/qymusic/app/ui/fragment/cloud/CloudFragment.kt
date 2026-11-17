@@ -32,7 +32,7 @@ import com.qymusic.app.model.setupMusicRv
 import com.qymusic.app.ui.activity.PlatformLoginActivity
 
 /**
- * 云端模块：支持网易云 / QQ 音乐 / 酷我 三个平台，可同时绑定，
+ * 云端模块：支持网易云 / QQ 音乐 / 酷狗概念版 三个平台，可同时绑定，
  * 切换平台显示该平台的我喜欢的音乐与收藏歌单。
  */
 class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fragment_cloud),
@@ -97,7 +97,7 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
 
         binding.chipNetease.setOnClickListener { selectPlatform(PlatformLoginActivity.PLATFORM_NETEASE) }
         binding.chipQq.setOnClickListener { selectPlatform(PlatformLoginActivity.PLATFORM_QQ) }
-        binding.chipKuwo.setOnClickListener { selectPlatform(PlatformLoginActivity.PLATFORM_KUWO) }
+        binding.chipKuwo.setOnClickListener { selectPlatform(PlatformLoginActivity.PLATFORM_KUGOU) }
 
         binding.btnLogin.setOnClickListener { showLoginDialog() }
         binding.btnLogout.setOnClickListener { logout() }
@@ -118,7 +118,7 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
                 listOf(
                     PlatformLoginActivity.PLATFORM_NETEASE,
                     PlatformLoginActivity.PLATFORM_QQ,
-                    PlatformLoginActivity.PLATFORM_KUWO,
+                    PlatformLoginActivity.PLATFORM_KUGOU,
                 ).firstOrNull { isLogged(it) }?.let { platform = it }
             }
         }
@@ -141,10 +141,10 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
 
         styleChip(binding.chipNetease, platform == PlatformLoginActivity.PLATFORM_NETEASE)
         styleChip(binding.chipQq, platform == PlatformLoginActivity.PLATFORM_QQ)
-        styleChip(binding.chipKuwo, platform == PlatformLoginActivity.PLATFORM_KUWO)
+        styleChip(binding.chipKuwo, platform == PlatformLoginActivity.PLATFORM_KUGOU)
         binding.btnLogin.text = "登录" + platformName()
 
-        // 登录卡片文案跟随当前平台，避免切到 QQ/酷我后仍显示「登录网易云账号」
+        // 登录卡片文案跟随当前平台，避免切到 QQ/酷狗后仍显示「登录网易云账号」
         binding.tvLoginCardTitle.text = "登录" + platformName() + "账号"
         binding.tvLoginCardDesc.text = if (platform == PlatformLoginActivity.PLATFORM_NETEASE) {
             "登录后可查看你收藏的歌手、歌单，以及「我喜欢的音乐」。登录凭据只保存在本机。"
@@ -205,12 +205,12 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
             try {
                 val likedUrl = when (target) {
                     PlatformLoginActivity.PLATFORM_QQ -> Api.QQ_LIKED
-                    PlatformLoginActivity.PLATFORM_KUWO -> Api.KUWO_LIKED
+                    PlatformLoginActivity.PLATFORM_KUGOU -> Api.KUGOU_LIKED
                     else -> Api.NETEASE_LIKED
                 }
                 val playlistsUrl = when (target) {
                     PlatformLoginActivity.PLATFORM_QQ -> Api.QQ_PLAYLISTS
-                    PlatformLoginActivity.PLATFORM_KUWO -> Api.KUWO_PLAYLISTS
+                    PlatformLoginActivity.PLATFORM_KUGOU -> Api.KUGOU_PLAYLISTS
                     else -> Api.NETEASE_PLAYLISTS
                 }
                 val isNetease = target == PlatformLoginActivity.PLATFORM_NETEASE
@@ -277,7 +277,7 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
     private fun logout() {
         when (platform) {
             PlatformLoginActivity.PLATFORM_QQ -> SPConfig.clearQqLogin()
-            PlatformLoginActivity.PLATFORM_KUWO -> SPConfig.clearKuwoLogin()
+            PlatformLoginActivity.PLATFORM_KUGOU -> SPConfig.clearKugouLogin()
             else -> SPConfig.clearNeteaseLogin()
         }
         // 清掉 WebView 登录态，否则下次点登录会直接回到原账号
@@ -297,43 +297,42 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
 
     private fun platformName(p: String = platform): String = when (p) {
         PlatformLoginActivity.PLATFORM_QQ -> "QQ音乐"
-        PlatformLoginActivity.PLATFORM_KUWO -> "酷我"
+        PlatformLoginActivity.PLATFORM_KUGOU -> "酷狗"
         else -> "网易云"
     }
 
     private fun isLogged(p: String): Boolean = when (p) {
         PlatformLoginActivity.PLATFORM_QQ -> SPConfig.isQqLoggedIn()
-        PlatformLoginActivity.PLATFORM_KUWO -> SPConfig.isKuwoLoggedIn()
+        PlatformLoginActivity.PLATFORM_KUGOU -> SPConfig.isKugouLoggedIn()
         else -> SPConfig.isNeteaseLoggedIn()
     }
 
     private fun cookieOf(p: String): String = when (p) {
         PlatformLoginActivity.PLATFORM_QQ -> SPConfig.qqCookie()
-        PlatformLoginActivity.PLATFORM_KUWO -> SPConfig.kuwoCookie()
+        PlatformLoginActivity.PLATFORM_KUGOU -> SPConfig.kugouCookie()
         else -> SPConfig.neteaseCookie()
     }
 
     private fun uidOf(p: String): Long = when (p) {
         PlatformLoginActivity.PLATFORM_QQ -> SPConfig.qqUin().toLongOrNull() ?: 0L
-        PlatformLoginActivity.PLATFORM_KUWO -> SPConfig.kuwoUid()
+        PlatformLoginActivity.PLATFORM_KUGOU -> SPConfig.kugouUid()
         else -> SPConfig.neteaseUid()
     }
 
     private fun nickname(): String = when (platform) {
         PlatformLoginActivity.PLATFORM_QQ -> SPConfig.qqNickname()
-        PlatformLoginActivity.PLATFORM_KUWO -> SPConfig.kuwoNickname()
+        PlatformLoginActivity.PLATFORM_KUGOU -> SPConfig.kugouNickname()
         else -> SPConfig.neteaseNickname()
     }
 
     private fun avatar(): String = when (platform) {
         PlatformLoginActivity.PLATFORM_QQ -> SPConfig.qqAvatar()
-        PlatformLoginActivity.PLATFORM_KUWO -> SPConfig.kuwoAvatar()
+        PlatformLoginActivity.PLATFORM_KUGOU -> SPConfig.kugouAvatar()
         else -> SPConfig.neteaseAvatar()
     }
 
     /**
      * 登录弹窗：扫码 / 网页登录 / Cookie 三种方式。
-     * 酷我官方插件没有扫码，只保留网页与 Cookie。
      */
     private fun showLoginDialog() {
         // 只允许一个登录弹窗，避免连点叠出多个二维码轮询
@@ -342,7 +341,6 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         }
         // 弹窗打开期间锁定平台，防止切平台后把 Cookie 存到别的账号上
         val target = platform
-        val isKuwo = target == PlatformLoginActivity.PLATFORM_KUWO
 
         val view = com.qymusic.app.databinding.DialogLoginBinding.inflate(layoutInflater)
         val dialog = android.app.Dialog(requireContext())
@@ -357,10 +355,6 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         }
 
         view.tvLoginTitle.text = "登录" + platformName(target)
-        if (isKuwo) {
-            // 酷我官方插件没有扫码，只保留网页登录与 Cookie
-            view.btnMethodQr.visibility = View.GONE
-        }
 
         view.toggleLoginMethod.addOnButtonCheckedListener { _, checkedId, isChecked ->
             if (!isChecked) {
@@ -375,9 +369,7 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
                 qrJob?.cancel()
             }
         }
-        view.toggleLoginMethod.check(
-            if (isKuwo) R.id.btn_method_web else R.id.btn_method_qr
-        )
+        view.toggleLoginMethod.check(R.id.btn_method_qr)
 
         view.btnQrRefresh.setOnClickListener { loadQr(view, dialog, target) }
         view.btnOpenWeb.setOnClickListener {
@@ -425,11 +417,16 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         view.imgQr.setImageDrawable(null)
         view.tvQrStatus.text = "正在获取二维码…"
         val isQq = target == PlatformLoginActivity.PLATFORM_QQ
+        val isKugou = target == PlatformLoginActivity.PLATFORM_KUGOU
         val deadline = System.currentTimeMillis() + QR_TIMEOUT_MS
         qrJob = viewLifecycleOwner.lifecycleScope.launch {
             try {
                 val data = Get<com.qymusic.app.model.QrCreate>(
-                    if (isQq) Api.QR_QQ else Api.QR_NETEASE
+                    when {
+                        isQq -> Api.QR_QQ
+                        isKugou -> Api.QR_KUGOU
+                        else -> Api.QR_NETEASE
+                    }
                 ).await()
                 val bitmap = decodeQr(data.image)
                 if (bitmap == null) {
@@ -453,7 +450,11 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
                     kotlinx.coroutines.delay(2000)
                     val poll = try {
                         Get<com.qymusic.app.model.QrPoll>(
-                            if (isQq) Api.QR_QQ_POLL else Api.QR_NETEASE_POLL
+                            when {
+                                isQq -> Api.QR_QQ_POLL
+                                isKugou -> Api.QR_KUGOU_POLL
+                                else -> Api.QR_NETEASE_POLL
+                            }
                         ) {
                             addQuery(if (isQq) "qrsig" else "key", id)
                         }.await()
@@ -534,7 +535,7 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         }
         val api = when (target) {
             PlatformLoginActivity.PLATFORM_QQ -> Api.QQ_ACCOUNT
-            PlatformLoginActivity.PLATFORM_KUWO -> Api.KUWO_ACCOUNT
+            PlatformLoginActivity.PLATFORM_KUGOU -> Api.KUGOU_ACCOUNT
             else -> Api.NETEASE_ACCOUNT
         }
         viewLifecycleOwner.lifecycleScope.launch {
@@ -546,7 +547,7 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
                     PlatformLoginActivity.PLATFORM_QQ -> SPConfig.saveQqLogin(
                         cookie, account.userId.toString(), account.nickname, account.avatarUrl
                     )
-                    PlatformLoginActivity.PLATFORM_KUWO -> SPConfig.saveKuwoLogin(
+                    PlatformLoginActivity.PLATFORM_KUGOU -> SPConfig.saveKugouLogin(
                         cookie, account.userId, account.nickname, account.avatarUrl
                     )
                     else -> SPConfig.saveNeteaseLogin(

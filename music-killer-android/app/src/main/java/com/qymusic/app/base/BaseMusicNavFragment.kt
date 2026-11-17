@@ -295,6 +295,9 @@ abstract class BaseMusicNavFragment<V : ViewDataBinding>(@LayoutRes contentLayou
       if (musicModel.source == "qq") {
         addQuery("qqCookie", SPConfig.qqCookie())
       }
+      if (musicModel.source == "kg") {
+        addQuery("kgCookie", SPConfig.kugouCookie())
+      }
       addQuery("name", musicModel.showName)
       addQuery("singer", musicModel.artist)
       addQuery("album", musicModel.album)
@@ -326,6 +329,9 @@ abstract class BaseMusicNavFragment<V : ViewDataBinding>(@LayoutRes contentLayou
         .apply {
           if (musicModel.source == "qq") {
             appendQueryParameter("qqCookie", SPConfig.qqCookie())
+          }
+          if (musicModel.source == "kg") {
+            appendQueryParameter("kgCookie", SPConfig.kugouCookie())
           }
         }
         .appendQueryParameter("name", musicModel.showName)

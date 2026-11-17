@@ -1,4 +1,4 @@
-package com.qymusic.controller.kuwo;
+package com.qymusic.controller.kg;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -10,35 +10,35 @@ import org.springframework.web.bind.annotation.RestController;
 import com.qymusic.entity.Music;
 import com.qymusic.entity.PlayList;
 import com.qymusic.result.Result;
-import com.qymusic.service.KuwoUserService;
+import com.qymusic.service.KugouUserService;
 
 import java.util.List;
 import java.util.Map;
 
 @RestController
-@RequestMapping("/kuwo/user")
-@Tag(name = "酷我账号")
-public class KuwoUserController {
+@RequestMapping("/kg/user")
+@Tag(name = "酷狗音乐账号")
+public class KgUserController {
 
     @Resource
-    private KuwoUserService kuwoUserService;
+    private KugouUserService kugouUserService;
 
-    @Operation(summary = "酷我账号信息")
+    @Operation(summary = "酷狗账号信息")
     @GetMapping("/account")
     public Result<Map<String, Object>> account(@RequestParam String cookie) {
-        return kuwoUserService.account(cookie);
+        return kugouUserService.account(cookie);
     }
 
-    @Operation(summary = "酷我收藏歌单")
+    @Operation(summary = "酷狗收藏歌单")
     @GetMapping("/playlists")
     public Result<List<PlayList>> playlists(@RequestParam String cookie) {
-        return kuwoUserService.playlists(cookie);
+        return kugouUserService.playlists(cookie);
     }
 
-    @Operation(summary = "酷我我喜欢的音乐")
+    @Operation(summary = "酷狗我喜欢的音乐（概念版暂无稳定接口，返回空列表）")
     @GetMapping("/liked")
     public Result<List<Music>> liked(@RequestParam String cookie,
                                      @RequestParam(defaultValue = "30") int limit) {
-        return kuwoUserService.liked(cookie, limit);
+        return kugouUserService.liked(cookie, limit);
     }
 }

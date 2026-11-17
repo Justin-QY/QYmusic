@@ -49,7 +49,7 @@
                 android:layout_weight="1"
                 android:background="@android:color/transparent"
                 android:gravity="center"
-                android:text="酷我"
+                android:text="酷狗"
                 android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
                 android:textColor="?attr/colorOnSurfaceVariant" />
 

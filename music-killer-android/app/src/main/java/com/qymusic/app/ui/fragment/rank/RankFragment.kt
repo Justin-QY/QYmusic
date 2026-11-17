@@ -44,7 +44,7 @@ class RankFragment : BaseMusicNavFragment<FragmentRankBinding>(R.layout.fragment
       scope {
         var list = Get<List<MusicRankMenuModel>>(Api.catalog(Api.RANK_MENU)).await()
         if (list.isEmpty()) {
-          // 酷我偶发返回空数据，稍等重试一次，避免页面直接显示“空空如也”
+          // 服务端偶发返回空数据，稍等重试一次，避免页面直接显示“空空如也”
           delay(700)
           list = Get<List<MusicRankMenuModel>>(Api.catalog(Api.RANK_MENU)).await()
         }

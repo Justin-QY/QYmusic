@@ -20,7 +20,7 @@ data class DownloadModel(
   val musicId: Long = 0,
 
   /**
-   * 音源平台：kw=酷我，wy=网易云；旧数据可能为空
+   * 音源平台：kg=酷狗概念版，wy=网易云；旧数据可能为空
    */
   val source: String? = null,
 

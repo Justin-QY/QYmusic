@@ -17,14 +17,14 @@ import com.qymusic.app.model.Page
 import com.qymusic.app.model.setupMusicRv
 
 /**
- * 歌曲搜索结果列表，支持在酷我 / 网易云之间切换
+ * 歌曲搜索结果列表，支持在酷狗 / 网易云 / QQ 音乐之间切换
  */
 class SearchMusicListFragment :
         BaseSearchListFragment<FragmentSearchMusicListBinding>(R.layout.fragment_search_music_list) {
 
-  /** 当前搜索音源：wy=网易云，qq=QQ音乐，kw=酷我 */
+  /** 当前搜索音源：wy=网易云，qq=QQ音乐，kg=酷狗 */
   private var searchSource = when (SPConfig.catalogSource()) {
-    SPConfig.SOURCE_KUWO -> SPConfig.SOURCE_KUWO
+    SPConfig.SOURCE_KUGOU -> SPConfig.SOURCE_KUGOU
     SPConfig.SOURCE_QQ -> SPConfig.SOURCE_QQ
     else -> SPConfig.SOURCE_NETEASE
   }
@@ -37,7 +37,7 @@ class SearchMusicListFragment :
     // 默认跟随设置页的「曲库音源」
     binding.toggleSource.check(
       when (searchSource) {
-        SPConfig.SOURCE_KUWO -> R.id.btn_source_kw
+        SPConfig.SOURCE_KUGOU -> R.id.btn_source_kw
         SPConfig.SOURCE_QQ -> R.id.btn_source_qq
         else -> R.id.btn_source_wy
       }
@@ -48,7 +48,7 @@ class SearchMusicListFragment :
         return@addOnButtonCheckedListener
       }
       val source = when (checkedId) {
-        R.id.btn_source_kw -> SPConfig.SOURCE_KUWO
+        R.id.btn_source_kw -> SPConfig.SOURCE_KUGOU
         R.id.btn_source_qq -> SPConfig.SOURCE_QQ
         else -> SPConfig.SOURCE_NETEASE
       }
@@ -68,7 +68,7 @@ class SearchMusicListFragment :
       scope {
         // 三条曲库的歌曲搜索接口路径并不统一，QQ 走 /qq/search
         val url = when (searchSource) {
-          SPConfig.SOURCE_KUWO -> Api.SEARCH_KUWO
+          SPConfig.SOURCE_KUGOU -> Api.SEARCH_KUGOU
           SPConfig.SOURCE_QQ -> Api.SEARCH_QQ
           else -> Api.SEARCH_NETEASE
         }

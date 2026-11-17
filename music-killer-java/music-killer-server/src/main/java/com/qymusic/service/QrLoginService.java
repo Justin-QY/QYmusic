@@ -30,12 +30,12 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 /**
- * 扫码登录：网易云 / QQ 音乐。
+ * 扫码登录：网易云 / QQ 音乐 / 酷狗概念版。
  *
  * <p>协议参考 QPlayer 的 provider 插件：
  * 网易云 {@code /api/login/qrcode/unikey} + {@code client/login}；
- * QQ {@code ptqrshow → ptqrlogin → check_sig → oauth2/authorize → QQLogin}。
- * 酷我官方插件只有 Cookie 登录，没有扫码。</p>
+ * QQ {@code ptqrshow → ptqrlogin → check_sig → oauth2/authorize → QQLogin}；
+ * 酷狗概念版 {@code login-user.kugou.com/v2/qrcode} + {@code get_userinfo_qrcode}。</p>
  */
 @Slf4j
 @Service
@@ -281,6 +281,156 @@ public class QrLoginService {
             log.warn("QQ 扫码授权失败: {}", e.getMessage());
             return "";
         }
+    }
+
+    // ------------------------------------------------------------------ 酷狗（概念版）
+
+    private static final String KG_LOGIN = "https://login-user.kugou.com";
+    private static final String KG_SIGN_KEY = "NVPh5oo715z5DIWAeQlhMDsWXXQV4hwt";
+    private static final String KG_UA = "Android15-1070-11083-46-0-DiscoveryDRADProtocol-wifi";
+
+    /**
+     * 创建酷狗概念版登录二维码。
+     */
+    public Map<String, Object> kugouCreate() throws Exception {
+        Map<String, String> params = kgBaseParams();
+        params.put("appid", "1001");
+        params.put("type", "1");
+        params.put("plat", "4");
+        params.put("qrcode_txt",
+                "https://h5.kugou.com/apps/loginQRCode/html/index.html?appid=3116&");
+        params.put("srcappid", "2919");
+        JsonNode root = kgSignedGet("/v2/qrcode", params);
+        String key = root == null ? "" : root.path("data").path("qrcode").asText("");
+        if (key.isBlank()) {
+            throw new IllegalStateException("酷狗未返回登录二维码");
+        }
+        String url = "https://h5.kugou.com/apps/loginQRCode/html/index.html?qrcode="
+                + java.net.URLEncoder.encode(key, StandardCharsets.UTF_8);
+        Map<String, Object> data = new LinkedHashMap<>();
+        data.put("key", key);
+        data.put("url", url);
+        data.put("image", qrImage(url));
+        data.put("expiresIn", 300);
+        return data;
+    }
+
+    /**
+     * 轮询酷狗概念版扫码状态。
+     *
+     * <p>status：4 登录成功（带 token/userid）；2、3 已扫码；-1、5、6 已过期。</p>
+     */
+    public Map<String, Object> kugouPoll(String key) throws Exception {
+        Map<String, Object> data = new LinkedHashMap<>();
+        if (key == null || key.isBlank()) {
+            data.put("status", "failed");
+            data.put("message", "缺少登录 key");
+            return data;
+        }
+        Map<String, String> params = kgBaseParams();
+        params.put("plat", "4");
+        params.put("appid", "3116");
+        params.put("srcappid", "2919");
+        params.put("qrcode", key);
+        JsonNode root = kgSignedGet("/v2/get_userinfo_qrcode", params);
+        JsonNode payload = root == null ? null : root.path("data");
+        int status = payload == null ? -1 : payload.path("status").asInt(-1);
+        if (status == 4) {
+            String token = payload.path("token").asText("");
+            String userId = payload.path("userid").asText("");
+            if (token.isBlank() || userId.isBlank() || "0".equals(userId)) {
+                data.put("status", "failed");
+                data.put("message", "登录成功但未返回 token，请重新扫码");
+                return data;
+            }
+            String guid = randomGuid();
+            String mid = new java.math.BigInteger(
+                    md5Hex(guid), 16).toString();
+            data.put("status", "success");
+            data.put("userId", userId);
+            data.put("cookie", "token=" + token
+                    + "; userid=" + userId
+                    + "; KugooID=" + userId
+                    + "; KUGOU_API_GUID=" + guid
+                    + "; KUGOU_API_MID=" + mid);
+        } else if (status == 2 || status == 3) {
+            data.put("status", "scanned");
+            data.put("message", "已扫码，请在酷狗 App 中确认");
+        } else if (status == -1 || status == 5 || status == 6) {
+            data.put("status", "expired");
+            data.put("message", "二维码已失效，请重新生成");
+        } else {
+            data.put("status", "waiting");
+            data.put("message", "等待扫码");
+        }
+        return data;
+    }
+
+    private Map<String, String> kgBaseParams() {
+        Map<String, String> params = new LinkedHashMap<>();
+        params.put("dfid", "-");
+        params.put("mid", "-");
+        params.put("uuid", "-");
+        params.put("appid", "3116");
+        params.put("clientver", "11440");
+        params.put("clienttime", String.valueOf(System.currentTimeMillis() / 1000));
+        return params;
+    }
+
+    private JsonNode kgSignedGet(String path, Map<String, String> params) throws Exception {
+        List<String> keys = new java.util.ArrayList<>(params.keySet());
+        keys.sort(String::compareTo);
+        StringBuilder joined = new StringBuilder();
+        for (String name : keys) {
+            joined.append(name).append('=').append(params.get(name));
+        }
+        params.put("signature", md5Hex(KG_SIGN_KEY + joined + KG_SIGN_KEY));
+        StringBuilder query = new StringBuilder();
+        for (Map.Entry<String, String> entry : params.entrySet()) {
+            if (query.length() > 0) {
+                query.append('&');
+            }
+            query.append(java.net.URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8))
+                    .append('=')
+                    .append(java.net.URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8));
+        }
+        Request request = new Request.Builder()
+                .url(KG_LOGIN + path + "?" + query)
+                .header("User-Agent", KG_UA)
+                .header("dfid", params.getOrDefault("dfid", "-"))
+                .header("mid", params.getOrDefault("mid", "-"))
+                .header("clienttime", params.getOrDefault("clienttime", ""))
+                .build();
+        try (Response response = CLIENT.newCall(request).execute()) {
+            if (!response.isSuccessful() || response.body() == null) {
+                return null;
+            }
+            String body = response.body().string();
+            int index = body.indexOf('{');
+            if (index < 0) {
+                return null;
+            }
+            return MAPPER.readTree(index > 0 ? body.substring(index) : body);
+        }
+    }
+
+    private String randomGuid() {
+        StringBuilder sb = new StringBuilder();
+        for (int i = 0; i < 32; i++) {
+            sb.append(Integer.toHexString(java.util.concurrent.ThreadLocalRandom.current().nextInt(16)));
+        }
+        return sb.toString();
+    }
+
+    private String md5Hex(String value) throws Exception {
+        java.security.MessageDigest digest = java.security.MessageDigest.getInstance("MD5");
+        byte[] bytes = digest.digest(value.getBytes(StandardCharsets.UTF_8));
+        StringBuilder sb = new StringBuilder();
+        for (byte b : bytes) {
+            sb.append(Character.forDigit((b >> 4) & 0xF, 16));
+            sb.append(Character.forDigit(b & 0xF, 16));
+        }
+        return sb.toString();
     }
 
     // ------------------------------------------------------------------ 工具

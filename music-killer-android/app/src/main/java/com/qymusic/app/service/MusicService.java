@@ -359,7 +359,7 @@ public class MusicService extends MediaSessionService implements Player.Listener
          * 第三方音源（ChKSz API）解析。
          *
          * <p>只在设置页开启并配置了 apikey 时生效；目前 ChKSz 只提供网易云 / QQ / 酷狗，
-         * 因此酷我歌曲仍然走原有链路。任何异常都返回 null，交给后面的落雪脚本兜底。</p>
+         * 这里仅对网易云歌曲生效。任何异常都返回 null，交给后面的落雪脚本兜底。</p>
          */
         private static String resolveFromThirdParty(String source, String id, String bridge) {
             if (!"wy".equals(source)) {
@@ -433,7 +433,7 @@ public class MusicService extends MediaSessionService implements Player.Listener
             String bridge = dataSpec.uri.getQueryParameter("bridge");
             String source = dataSpec.uri.getQueryParameter("source");
             if (source == null || source.isEmpty()) {
-                source = "kw";
+                source = "wy";
             }
             String name = dataSpec.uri.getQueryParameter("name");
             String singer = dataSpec.uri.getQueryParameter("singer");
@@ -441,6 +441,7 @@ public class MusicService extends MediaSessionService implements Player.Listener
             String duration = dataSpec.uri.getQueryParameter("duration");
             String sourceId = dataSpec.uri.getQueryParameter("sourceId");
             String qqCookie = dataSpec.uri.getQueryParameter("qqCookie");
+            String kgCookie = dataSpec.uri.getQueryParameter("kgCookie");
 
             String cacheKey = source + "|" + id + "|" + bridge;
             // QQ 音乐匿名只给空 vkey，播放必须带登录 Cookie，提前给出明确提示
@@ -468,6 +469,9 @@ public class MusicService extends MediaSessionService implements Player.Listener
                     }
                     if (qqCookie != null && !qqCookie.isEmpty()) {
                         urlRequest.addQuery("qqCookie", qqCookie, false);
+                    }
+                    if (kgCookie != null && !kgCookie.isEmpty()) {
+                        urlRequest.addQuery("kgCookie", kgCookie, false);
                     }
                     if (name != null && !name.isEmpty()) {
                         urlRequest.addQuery("name", name, false);
@@ -502,7 +506,7 @@ public class MusicService extends MediaSessionService implements Player.Listener
             // 否则每次 seek 都会从第 0 字节开始读取，表现为「拖动进度条后又从头播放」。
             return dataSpec.buildUpon()
                     .setUri(Uri.parse(playUrl))
-                    .setKey(source + "-" + id + "-v3") // 音源+ID 作为缓存 Key，避免酷我/网易云同 ID 串歌
+                    .setKey(source + "-" + id + "-v3") // 音源+ID 作为缓存 Key，避免不同音源同 ID 串歌
                     .build();
         }
     }

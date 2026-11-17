@@ -30,7 +30,7 @@ data class MusicModel(
   @SerialName("artist")
   var artist: String = "",
   @SerialName("source")
-  var source: String = "kw",
+  var source: String = "wy",
   /** 平台原始 ID（QQ 音乐的 songmid 等） */
   @SerialName("sourceId")
   var sourceId: String = "",
@@ -119,7 +119,7 @@ data class MusicModel(
         name = downloadModel.name,
         id = downloadModel.musicId,
         artist = downloadModel.artist,
-        source = downloadModel.source ?: "kw",
+        source = downloadModel.source ?: "wy",
         localPath = downloadModel.localPath
       )
     }

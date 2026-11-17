@@ -20,7 +20,7 @@ import com.qymusic.app.databinding.ActivityNeteaseLoginBinding
 import com.qymusic.app.model.PlatformAccount
 
 /**
- * 云端账号登录（网易云 / QQ 音乐 / 酷我通用）。
+ * 云端账号登录（网易云 / QQ 音乐 / 酷狗概念版通用）。
  *
  * 登录页在 WebView 内完成，登录成功后从请求头抓取 Cookie（多数是 HttpOnly），
  * 再调服务端换取账号信息，只保存在本机。
@@ -32,7 +32,7 @@ class PlatformLoginActivity : AppCompatActivity() {
 
         const val PLATFORM_NETEASE = "netease"
         const val PLATFORM_QQ = "qq"
-        const val PLATFORM_KUWO = "kuwo"
+        const val PLATFORM_KUGOU = "kugou"
 
         const val MOBILE_UA =
             "Mozilla/5.0 (Linux; Android 13) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36"
@@ -62,15 +62,15 @@ class PlatformLoginActivity : AppCompatActivity() {
                 Api.QQ_ACCOUNT,
                 true
             ),
-            PLATFORM_KUWO to LoginConfig(
-                "https://www.kuwo.cn/",
+            PLATFORM_KUGOU to LoginConfig(
+                "https://www.kugou.com/",
                 listOf(
-                    "https://www.kuwo.cn", "https://kuwo.cn",
-                    "https://m.kuwo.cn", "https://passport.kuwo.cn"
+                    "https://www.kugou.com", "https://m.kugou.com",
+                    "https://login-user.kugou.com"
                 ),
-                // kw_token 匿名访客也有，不能当作已登录；用 userid 判断
+                // 未登录时也会下发其他 Cookie，用 userid 判断是否真正登录
                 listOf("userid="),
-                Api.KUWO_ACCOUNT,
+                Api.KUGOU_ACCOUNT,
                 true
             ),
         )
@@ -159,8 +159,8 @@ class PlatformLoginActivity : AppCompatActivity() {
         if (config.cookieKeys.none { cookie.contains(it) }) {
             return false
         }
-        // 酷我退出登录后仍会保留 userid=0，需要排除
-        if (platform == PLATFORM_KUWO) {
+        // 酷狗退出登录后仍会保留 userid=0，需要排除
+        if (platform == PLATFORM_KUGOU) {
             val uid = Regex("(?:^|;\\s*)userid=(\\d+)").find(cookie)
                 ?.groupValues?.get(1)?.toLongOrNull() ?: 0L
             return uid > 0
@@ -168,7 +168,7 @@ class PlatformLoginActivity : AppCompatActivity() {
         return true
     }
 
-    /** QQ/酷我的登录 Cookie 分散在多个子域，需要合并读取 */
+    /** QQ/酷狗的登录 Cookie 分散在多个子域，需要合并读取 */
     private fun readCookies(): String {
         val merged = LinkedHashMap<String, String>()
         config.cookieDomains.forEach { domain ->
@@ -216,7 +216,7 @@ class PlatformLoginActivity : AppCompatActivity() {
                     PLATFORM_QQ -> SPConfig.saveQqLogin(
                         cookie, account.userId.toString(), account.nickname, account.avatarUrl
                     )
-                    PLATFORM_KUWO -> SPConfig.saveKuwoLogin(
+                    PLATFORM_KUGOU -> SPConfig.saveKugouLogin(
                         cookie, account.userId, account.nickname, account.avatarUrl
                     )
                     else -> SPConfig.saveNeteaseLogin(

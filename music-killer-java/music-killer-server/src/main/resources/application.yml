@@ -60,22 +60,6 @@ mybatis-plus:
       logic-delete-value: 1 # 1琛ㄧず宸插垹闄?
       logic-not-delete-value: 0 # 0 鏈垹闄?
 
-# 閰锋垜鎺ュ彛閰嶇疆
-kuwo:
-  url: https://www.kuwo.cn # 閰锋垜鍩熷悕
-  key: Hm_Iuvt_cdb524f42f23cer9b268564v7y735ewrq2324
-  value: AFBMJdz2jxPMfnTtSGCx5ret6tkrRG4m
-  cookie: Hm_lvt_cdb524f42f0ce19b169a8071123a4797=1762436461; HMACCOUNT=6488AFA03FCE8597; _ga=GA1.2.1714626163.1762436461; _gid=GA1.2.1726759435.1762436461; Hm_lpvt_cdb524f42f0ce19b169a8071123a4797=1762439437; _gat=1; _ga_ETPBRPM9ML=GS2.2.s1762438871$o2$g1$t1762439437$j60$l0$h0; Hm_Iuvt_cdb524f42f23cer9b268564v7y735ewrq2324=AFBMJdz2jxPMfnTtSGCx5ret6tkrRG4m
-  play: # 鎾斁鍦板潃闇€瑕佺殑涓€浜涘弬鏁扮粍鍚?
-    f: web
-    source: kwplayercar_ar_6.0.0.9_B_jiakong_vh.apk
-    from: PC
-    type: convert_url_with_sign
-    br: 128k
-    rid: 0
-    user: C_APK_guanwang_12609069939969033731
-  album-host: 'http://img2.kuwo.cn/star/albumcover/' # 涓撹緫鍥剧墖鍩熷悕鍦板潃
-  artist-host: 'https://img1.kuwo.cn/star/starheads/' # 姝屾墜鍥剧墖鍩熷悕鍦板潃
 
 # retrofit 閰嶇疆
 retrofit:
@@ -112,6 +96,6 @@ lx:
 # App 鍦ㄧ嚎鏇存柊
 app:
   # 寮哄埗鏇存柊锛氫綆浜庤 versionCode 鐨勫鎴风锛屾湇鍔＄涓嶈繑鍥炰换浣曚笟鍔℃暟鎹?
-  min-version-code: 25
+  min-version-code: 26
   update:
     dir: /opt/music-killer/update # update.json 涓?apk 鎵€鍦ㄧ洰褰曪紝閮ㄧ讲鏃舵寕杞?

@@ -85,7 +85,7 @@ class RecommendFragment :
       Get<List<MusicRankModel>>(Api.catalog(Api.RANK_INDEX)) {
         setCacheMode(cacheModel)
       }.await().onEach {
-        it.leader = it.leader.replace("酷我", "")
+        it.leader = it.leader.replace("酷狗", "")
       }
     }
 

@@ -11,7 +11,7 @@ import org.litepal.LitePal
  * `SELECT * FROM FavoriteModel WHERE musicId = ? AND source = ?` 直接抛
  * `no such column: source`，收藏判断失败后连搜索/首页一起报错。</p>
  *
- * <p>这里在应用启动时做一次幂等的兜底检查：缺列就补列，历史数据统一按酷我回填，
+ * <p>这里在应用启动时做一次幂等的兜底检查：缺列就补列，历史数据统一按旧音源 kw 回填，
  * 这样即使 LitePal 自动升级没有触发，也不会再出现缺列异常。</p>
  */
 object DatabaseMigration {
@@ -52,7 +52,7 @@ object DatabaseMigration {
         Log.i(TAG, "favoritemodel 已补充 source 列")
       }
 
-      // 旧版本只有酷我曲库，历史收藏的 source 为空时按 kw 回填，
+      // 旧版本只有 kw 曲库，历史收藏的 source 为空时按 kw 回填，
       // 保证旧收藏能继续被识别为已收藏。
       db.execSQL("UPDATE $FAVORITE_TABLE SET source = 'kw' WHERE source IS NULL OR source = ''")
     } catch (e: Exception) {

@@ -83,8 +83,8 @@ object Api {
   /** 网易云搜索 */
   const val SEARCH_NETEASE = "/search/netease"
 
-  /** 酷我搜索（备用） */
-  const val SEARCH_KUWO = "/search/kuwo"
+  /** 酷狗概念版搜索 */
+  const val SEARCH_KUGOU = "/kg/search"
 
   /** QQ 音乐搜索 */
   const val SEARCH_QQ = "/qq/search"
@@ -102,6 +102,9 @@ object Api {
 
   /** QQ 音乐歌词 */
   const val QQ_LYRIC = "/qq/lyric"
+
+  /** 酷狗概念版歌词（sourceId 传酷狗 hash） */
+  const val KG_LYRIC = "/kg/lyric"
 
   /**
    * 音源脚本状态
@@ -141,26 +144,32 @@ object Api {
   const val QQ_PLAYLISTS = "/qq/user/playlists"
   const val QQ_LIKED = "/qq/user/liked"
 
-  /** 酷我账号（云端） */
-  const val KUWO_ACCOUNT = "/kuwo/user/account"
-  const val KUWO_PLAYLISTS = "/kuwo/user/playlists"
-  const val KUWO_LIKED = "/kuwo/user/liked"
+  /** 酷狗概念版账号（云端） */
+  const val KUGOU_ACCOUNT = "/kg/user/account"
+  const val KUGOU_PLAYLISTS = "/kg/user/playlists"
+  const val KUGOU_LIKED = "/kg/user/liked"
+
+  /** 酷狗签到领 VIP */
+  const val KUGOU_VIP_STATUS = "/kg/vip/status"
+  const val KUGOU_VIP_CHECKIN = "/kg/vip/checkin"
 
   /** 扫码登录 */
   const val QR_NETEASE = "/login/qr/netease"
   const val QR_NETEASE_POLL = "/login/qr/netease/poll"
   const val QR_QQ = "/login/qr/qq"
   const val QR_QQ_POLL = "/login/qr/qq/poll"
+  const val QR_KUGOU = "/login/qr/kugou"
+  const val QR_KUGOU_POLL = "/login/qr/kugou/poll"
 
   /**
    * 按当前曲库音源拼接接口路径。
    *
-   * 设置页可以在「网易云 / 酷我」之间切换：
-   * 网易云走原路径（/rank/menu 等），酷我走服务端的 /kuwo 前缀（/kuwo/rank/menu 等）。
-   * 歌曲 id 两边都是数字，切换后播放、歌词、收藏都能对上号。
+   * 设置页可以在「网易云 / 酷狗概念版 / QQ 音乐」之间切换：
+   * 网易云走原路径（/rank/menu 等），酷狗走 /kg 前缀（/kg/rank/menu 等），
+   * QQ 音乐走 /qq 前缀。歌曲 id 与音源一起用于播放和歌词。
    */
   fun catalog(path: String): String = when (SPConfig.catalogSource()) {
-    SPConfig.SOURCE_KUWO -> "/kuwo$path"
+    SPConfig.SOURCE_KUGOU -> "/kg$path"
     SPConfig.SOURCE_QQ -> "/qq$path"
     else -> path
   }

@@ -205,7 +205,7 @@
                             android:layout_weight="1"
                             android:background="@android:color/transparent"
                             android:gravity="center"
-                            android:text="酷我"
+                            android:text="酷狗"
                             android:textAppearance="@style/TextAppearance.Material3.LabelLarge"
                             android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -220,6 +220,73 @@
                         android:text="切换后首页、排行榜、歌手、歌单、搜索和歌词一并换源，不影响播放。"
                         android:textAppearance="@style/TextAppearance.Material3.BodySmall"
                         android:textColor="?attr/colorOnSurfaceVariant" />
+
+                    <View
+                        android:layout_width="match_parent"
+                        android:layout_height="1dp"
+                        android:layout_marginStart="54dp"
+                        android:layout_marginTop="14dp"
+                        android:background="?attr/colorOutlineVariant" />
+
+                    <LinearLayout
+                        android:id="@+id/item_kugou_checkin"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="12dp"
+                        android:layout_marginBottom="2dp"
+                        android:background="?attr/selectableItemBackground"
+                        android:gravity="center_vertical"
+                        android:orientation="horizontal"
+                        android:paddingTop="2dp"
+                        android:paddingBottom="2dp">
+
+                        <FrameLayout
+                            android:layout_width="40dp"
+                            android:layout_height="40dp"
+                            android:background="@drawable/bg_icon_circle">
+
+                            <ImageView
+                                android:layout_width="22dp"
+                                android:layout_height="22dp"
+                                android:layout_gravity="center"
+                                android:contentDescription="签到"
+                                android:src="@drawable/ic_vip_star"
+                                app:tint="?attr/colorPrimary" />
+
+                        </FrameLayout>
+
+                        <LinearLayout
+                            android:layout_width="0dp"
+                            android:layout_height="wrap_content"
+                            android:layout_marginStart="14dp"
+                            android:layout_weight="1"
+                            android:orientation="vertical">
+
+                            <TextView
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:text="酷狗签到领VIP"
+                                android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
+
+                            <TextView
+                                android:id="@+id/tv_kugou_checkin_state"
+                                android:layout_width="match_parent"
+                                android:layout_height="wrap_content"
+                                android:layout_marginTop="2dp"
+                                android:text="每日签到，领取酷狗概念版 VIP"
+                                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+                                android:textColor="?attr/colorOnSurfaceVariant" />
+
+                        </LinearLayout>
+
+                        <ImageView
+                            android:layout_width="20dp"
+                            android:layout_height="20dp"
+                            android:contentDescription="进入"
+                            android:src="@drawable/baseline_chevron_right_24"
+                            app:tint="?attr/colorOnSurfaceVariant" />
+
+                    </LinearLayout>
 
                 </LinearLayout>
 

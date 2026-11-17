@@ -43,7 +43,7 @@
                 android:layout_height="40dp"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
-                android:text="酷我" />
+                android:text="酷狗" />
 
         </com.google.android.material.button.MaterialButtonToggleGroup>
 

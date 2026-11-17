@@ -13,7 +13,7 @@ import com.qymusic.service.QrLoginService;
 import java.util.Map;
 
 /**
- * 扫码登录：网易云 / QQ 音乐（酷我官方无扫码）
+ * 扫码登录：网易云 / QQ 音乐 / 酷狗概念版
  */
 @RestController
 @RequestMapping("/login/qr")
@@ -58,6 +58,26 @@ public class QrLoginController {
     public Result<Map<String, Object>> qqPoll(@RequestParam String qrsig) {
         try {
             return Result.success(qrLoginService.qqPoll(qrsig));
+        } catch (Exception e) {
+            return Result.error("轮询失败");
+        }
+    }
+
+    @Operation(summary = "创建酷狗概念版登录二维码")
+    @GetMapping("/kugou")
+    public Result<Map<String, Object>> kugou() {
+        try {
+            return Result.success(qrLoginService.kugouCreate());
+        } catch (Exception e) {
+            return Result.error(e.getMessage() == null ? "获取二维码失败" : e.getMessage());
+        }
+    }
+
+    @Operation(summary = "轮询酷狗扫码状态")
+    @GetMapping("/kugou/poll")
+    public Result<Map<String, Object>> kugouPoll(@RequestParam String key) {
+        try {
+            return Result.success(qrLoginService.kugouPoll(key));
         } catch (Exception e) {
             return Result.error("轮询失败");
         }

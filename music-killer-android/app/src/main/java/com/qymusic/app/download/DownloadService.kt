@@ -36,6 +36,7 @@ import org.litepal.extension.find
 import org.litepal.extension.findFirst
 import com.qymusic.app.R
 import com.qymusic.app.config.Api
+import com.qymusic.app.config.SPConfig
 import com.qymusic.app.enums.MusicBridge
 import com.qymusic.app.model.MusicModel
 import com.qymusic.app.model.PlayInfo
@@ -318,7 +319,10 @@ class DownloadService : Service() {
             val playInfo = Get<PlayInfo>(Api.PLAY_INFO) {
               addQuery("id", it.musicId)
               addQuery("bridge", it.musicBridge)
-              addQuery("source", it.source ?: "kw")
+              addQuery("source", it.source ?: "wy")
+              if (it.source == "kg") {
+                addQuery("kgCookie", SPConfig.kugouCookie())
+              }
               addQuery("name", it.name)
               addQuery("singer", it.artist)
               addQuery("album", it.album)
@@ -417,6 +421,10 @@ class DownloadService : Service() {
         addQuery("id", musicModel.id)
         addQuery("bridge", bridge.level)
         addQuery("source", musicModel.source)
+        addQuery("sourceId", musicModel.sourceId)
+        if (musicModel.source == "kg") {
+          addQuery("kgCookie", SPConfig.kugouCookie())
+        }
         addQuery("name", musicModel.showName)
         addQuery("singer", musicModel.artist)
         addQuery("album", musicModel.album)
