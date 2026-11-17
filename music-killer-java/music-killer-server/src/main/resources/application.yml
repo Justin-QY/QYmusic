@@ -1,27 +1,27 @@
-spring:
+﻿spring:
   application:
     name: qy-music
   profiles:
     active: @env@
   servlet:
     multipart:
-      # 最大上传文件大小
+      # 鏈€澶т笂浼犳枃浠跺ぇ灏?
       max-file-size: 2MB
   # jackson:
     # mapper:
       # accept-case-insensitive-properties: true
 
-# mybatis 配置
+# mybatis 閰嶇疆
 mybatis:
-  # mapper xml 路径
+  # mapper xml 璺緞
   mapper-locations: classpath:mapper/*.xml
-  # 类型别名
+  # 绫诲瀷鍒悕
   type-aliases-package: com.qymusic.entity
 
-# springdoc-openapi项目配置
+# springdoc-openapi椤圭洰閰嶇疆
 springdoc:
   swagger-ui:
-    path: /swagger-ui.html # swagger 访问页面地址
+    path: /swagger-ui.html # swagger 璁块棶椤甸潰鍦板潃
     tags-sorter: alpha
     operations-sorter: alpha
   api-docs:
@@ -30,43 +30,43 @@ springdoc:
     - group: 'default'
       paths-to-match: '/**'
       packages-to-scan:
-        - com.qymusic.controller # 扫描 controller 包
-# knife4j的增强配置，不需要增强可以不配
+        - com.qymusic.controller # 鎵弿 controller 鍖?
+# knife4j鐨勫寮洪厤缃紝涓嶉渶瑕佸寮哄彲浠ヤ笉閰?
 knife4j:
-  enable: true # 开启增强配置
+  enable: true # 寮€鍚寮洪厤缃?
   setting:
-    language: zh_cn # 语言中文
+    language: zh_cn # 璇█涓枃
 
-# jwt 配置
+# jwt 閰嶇疆
 jwt:
-  user-secret-key: ${JWT_SECRET:QYMusicJwtSecret2026ChangeMe} # 部署时请通过环境变量覆盖
-  user-token-name: Authorization # 认证请求头的名称
-  user-ttl: 30d # 用户token过期时间
+  user-secret-key: ${JWT_SECRET:QYMusicJwtSecret2026ChangeMe} # 閮ㄧ讲鏃惰閫氳繃鐜鍙橀噺瑕嗙洊
+  user-token-name: Authorization # 璁よ瘉璇锋眰澶寸殑鍚嶇О
+  user-ttl: 30d # 鐢ㄦ埛token杩囨湡鏃堕棿
 
 api:
   auth:
     salt: QYMusicNativeSalt
 
-# 上传配置
+# 涓婁紶閰嶇疆
 upload:
-  url: https://img.ink/api/upload # 上传地址
-  token: ${UPLOAD_TOKEN:} # 上传 token，按需通过环境变量注入
+  url: https://img.ink/api/upload # 涓婁紶鍦板潃
+  token: ${UPLOAD_TOKEN:} # 涓婁紶 token锛屾寜闇€閫氳繃鐜鍙橀噺娉ㄥ叆
 
-# mybatis-plus 配置
+# mybatis-plus 閰嶇疆
 mybatis-plus:
   global-config:
     db-config:
-      logic-delete-field: deleted # 全局逻辑删除字段名
-      logic-delete-value: 1 # 1表示已删除
-      logic-not-delete-value: 0 # 0 未删除
+      logic-delete-field: deleted # 鍏ㄥ眬閫昏緫鍒犻櫎瀛楁鍚?
+      logic-delete-value: 1 # 1琛ㄧず宸插垹闄?
+      logic-not-delete-value: 0 # 0 鏈垹闄?
 
-# 酷我接口配置
+# 閰锋垜鎺ュ彛閰嶇疆
 kuwo:
-  url: https://www.kuwo.cn # 酷我域名
+  url: https://www.kuwo.cn # 閰锋垜鍩熷悕
   key: Hm_Iuvt_cdb524f42f23cer9b268564v7y735ewrq2324
   value: AFBMJdz2jxPMfnTtSGCx5ret6tkrRG4m
   cookie: Hm_lvt_cdb524f42f0ce19b169a8071123a4797=1762436461; HMACCOUNT=6488AFA03FCE8597; _ga=GA1.2.1714626163.1762436461; _gid=GA1.2.1726759435.1762436461; Hm_lpvt_cdb524f42f0ce19b169a8071123a4797=1762439437; _gat=1; _ga_ETPBRPM9ML=GS2.2.s1762438871$o2$g1$t1762439437$j60$l0$h0; Hm_Iuvt_cdb524f42f23cer9b268564v7y735ewrq2324=AFBMJdz2jxPMfnTtSGCx5ret6tkrRG4m
-  play: # 播放地址需要的一些参数组合
+  play: # 鎾斁鍦板潃闇€瑕佺殑涓€浜涘弬鏁扮粍鍚?
     f: web
     source: kwplayercar_ar_6.0.0.9_B_jiakong_vh.apk
     from: PC
@@ -74,44 +74,44 @@ kuwo:
     br: 128k
     rid: 0
     user: C_APK_guanwang_12609069939969033731
-  album-host: 'http://img2.kuwo.cn/star/albumcover/' # 专辑图片域名地址
-  artist-host: 'https://img1.kuwo.cn/star/starheads/' # 歌手图片域名地址
+  album-host: 'http://img2.kuwo.cn/star/albumcover/' # 涓撹緫鍥剧墖鍩熷悕鍦板潃
+  artist-host: 'https://img1.kuwo.cn/star/starheads/' # 姝屾墜鍥剧墖鍩熷悕鍦板潃
 
-# retrofit 配置
+# retrofit 閰嶇疆
 retrofit:
-  global-log: # 全局日志配置
-    enable: true # 开启日志
-    log-level: info # 日志等级
-    log-strategy: basic # 日志策略
-    aggregate: true # 是否聚合打印日志
+  global-log: # 鍏ㄥ眬鏃ュ織閰嶇疆
+    enable: true # 寮€鍚棩蹇?
+    log-level: info # 鏃ュ織绛夌骇
+    log-strategy: basic # 鏃ュ織绛栫暐
+    aggregate: true # 鏄惁鑱氬悎鎵撳嵃鏃ュ織
 
-  global-retry: # 全局重试
-    enable: true # 开启全局重试
-    interval-ms: 100 # 重试间隔时间
-    max-retries: 2 # 最大重试时间
-    retry-rules: # 重试触发规则
-      - response_status_not_2xx # 响应码状态不正确
-      - occur_exception # 出现异常时
-  global-timeout: # 全局超时配置
-    call-timeout-ms: 0 # 全局完整调用超时时间
-    read-timeout-ms: 10000 # 读取超时时间
-    write-timeout-ms: 10000 # 写入超时时间
-    connect-timeout-ms: 10000 # 连接超时时间
-  # 全局转换器：默认已经配置好，使用默认配置
+  global-retry: # 鍏ㄥ眬閲嶈瘯
+    enable: true # 寮€鍚叏灞€閲嶈瘯
+    interval-ms: 100 # 閲嶈瘯闂撮殧鏃堕棿
+    max-retries: 2 # 鏈€澶ч噸璇曟椂闂?
+    retry-rules: # 閲嶈瘯瑙﹀彂瑙勫垯
+      - response_status_not_2xx # 鍝嶅簲鐮佺姸鎬佷笉姝ｇ‘
+      - occur_exception # 鍑虹幇寮傚父鏃?
+  global-timeout: # 鍏ㄥ眬瓒呮椂閰嶇疆
+    call-timeout-ms: 0 # 鍏ㄥ眬瀹屾暣璋冪敤瓒呮椂鏃堕棿
+    read-timeout-ms: 10000 # 璇诲彇瓒呮椂鏃堕棿
+    write-timeout-ms: 10000 # 鍐欏叆瓒呮椂鏃堕棿
+    connect-timeout-ms: 10000 # 杩炴帴瓒呮椂鏃堕棿
+  # 鍏ㄥ眬杞崲鍣細榛樿宸茬粡閰嶇疆濂斤紝浣跨敤榛樿閰嶇疆
   # global-converter-factories: com.github.lianjiatech.retrofit.spring.boot.core.BasicTypeConverterFactory
 
-# 洛雪（lx-music）v4 音源脚本引擎
+# 娲涢洩锛坙x-music锛塿4 闊虫簮鑴氭湰寮曟搸
 lx:
-  enabled: true # 是否启用音源脚本解析
-  timeout-ms: 7000 # 单个脚本解析超时（毫秒）
-  total-timeout-ms: 12000 # 一次解析里所有脚本的总预算（毫秒）
-  scripts-dir: /opt/music-killer/lx # 外部脚本目录，放同名 .js 可热替换内置脚本
-  order: hyw,stellarwave,fish,quandou,nianxin # 解析优先级
-  disabled: nianxin # 不参与解析的脚本 id，逗号分隔
+  enabled: true # 鏄惁鍚敤闊虫簮鑴氭湰瑙ｆ瀽
+  timeout-ms: 7000 # 鍗曚釜鑴氭湰瑙ｆ瀽瓒呮椂锛堟绉掞級
+  total-timeout-ms: 12000 # 涓€娆¤В鏋愰噷鎵€鏈夎剼鏈殑鎬婚绠楋紙姣锛?
+  scripts-dir: /opt/music-killer/lx # 澶栭儴鑴氭湰鐩綍锛屾斁鍚屽悕 .js 鍙儹鏇挎崲鍐呯疆鑴氭湰
+  order: hyw,stellarwave,fish,quandou,nianxin # 瑙ｆ瀽浼樺厛绾?
+  disabled: nianxin # 涓嶅弬涓庤В鏋愮殑鑴氭湰 id锛岄€楀彿鍒嗛殧
 
-# App 在线更新
+# App 鍦ㄧ嚎鏇存柊
 app:
-  # 强制更新：低于该 versionCode 的客户端，服务端不返回任何业务数据
-  min-version-code: 23
+  # 寮哄埗鏇存柊锛氫綆浜庤 versionCode 鐨勫鎴风锛屾湇鍔＄涓嶈繑鍥炰换浣曚笟鍔℃暟鎹?
+  min-version-code: 24
   update:
-    dir: /opt/music-killer/update # update.json 与 apk 所在目录，部署时挂载
+    dir: /opt/music-killer/update # update.json 涓?apk 鎵€鍦ㄧ洰褰曪紝閮ㄧ讲鏃舵寕杞?

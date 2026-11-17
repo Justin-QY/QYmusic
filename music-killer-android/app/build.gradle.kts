@@ -1,16 +1,16 @@
-import java.util.Properties
+﻿import java.util.Properties
 
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.kotlin.android)
-  alias(libs.plugins.kotlin.serialization) // kotlin 序列化
-  id("kotlin-kapt") // brv 必须引入此插件
+  alias(libs.plugins.kotlin.serialization) // kotlin 搴忓垪鍖?
+  id("kotlin-kapt") // brv 蹇呴』寮曞叆姝ゆ彃浠?
   alias(libs.plugins.google.ksp) // ksp
   alias(libs.plugins.navigation.safeargs)
 }
 
 android {
-  // 签名信息从本地 keystore.properties 读取（不入库）
+  // 绛惧悕淇℃伅浠庢湰鍦?keystore.properties 璇诲彇锛堜笉鍏ュ簱锛?
   val keystoreProps = Properties().apply {
     val f = rootProject.file("keystore.properties")
     if (f.exists()) {
@@ -22,7 +22,7 @@ android {
 
   signingConfigs {
     getByName("debug") {
-      storeFile = file(prop("storeFile", "C:/mk/android/mk.jks"))
+      storeFile = file(prop("storeFile", "C:/OldData/mk/android/mk.jks"))
       storePassword = prop("storePassword", "")
       keyAlias = prop("keyAlias", "qymusic")
       keyPassword = prop("keyPassword", "")
@@ -30,7 +30,7 @@ android {
       enableV2Signing = true
     }
     create("release") {
-      storeFile = file(prop("storeFile", "C:/mk/android/mk.jks"))
+      storeFile = file(prop("storeFile", "C:/OldData/mk/android/mk.jks"))
       storePassword = prop("storePassword", "")
       keyAlias = prop("keyAlias", "qymusic")
       keyPassword = prop("keyPassword", "")
@@ -45,8 +45,8 @@ android {
     applicationId = "com.qymusic.app"
     minSdk = 24
     targetSdk = 36
-    versionCode = 23
-    versionName = "1.0.8"
+    versionCode = 24
+    versionName = "1.0.9"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     signingConfig = signingConfigs.getByName("release")
@@ -54,7 +54,7 @@ android {
 
   buildTypes {
     release {
-      // 简单混淆，防止直接反编译后复用接口与密钥
+      // 绠€鍗曟贩娣嗭紝闃叉鐩存帴鍙嶇紪璇戝悗澶嶇敤鎺ュ彛涓庡瘑閽?
       isMinifyEnabled = true
       isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android.txt"), "proguard-rules.pro")
@@ -70,7 +70,7 @@ android {
   }
 
   buildFeatures {
-    buildConfig = true // 必须 true，否则没有 BuildConfig 文件
+    buildConfig = true // 蹇呴』 true锛屽惁鍒欐病鏈?BuildConfig 鏂囦欢
     viewBinding = true
     dataBinding = true
   }
@@ -114,7 +114,7 @@ dependencies {
   implementation(libs.glide)
   implementation(libs.litepal)
   implementation(libs.tooltip)
-  // 权限请求
+  // 鏉冮檺璇锋眰
   implementation(libs.xxpermissions)
   implementation(libs.kotlinx.coroutines.core)
   implementation(libs.kotlinx.coroutines.android)
