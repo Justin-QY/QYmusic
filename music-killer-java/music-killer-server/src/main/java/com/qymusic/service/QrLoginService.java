@@ -287,7 +287,10 @@ public class QrLoginService {
 
     private static final String KG_LOGIN = "https://login-user.kugou.com";
     private static final String KG_SIGN_KEY = "NVPh5oo715z5DIWAeQlhMDsWXXQV4hwt";
+    private static final String KG_LITE_SIGN = "LnT6xpN3khm36zse0QzvmgTZ3waWdRSA";
     private static final String KG_UA = "Android15-1070-11083-46-0-DiscoveryDRADProtocol-wifi";
+    private static final String KG_RSA_N = "c40a2d0da76511f3bb1cc2bbd3afbd8bea83b4d6b05b6c13eb8920c53f1af7679b32ba0d0edb843240ef1b836efed3ee240734c14c1399fd6594d16af22f52525d14d72e0155c6dcc8638d4f7bb94f3a0b1f4c29f991972f2a160a25eb0a9e724336be7f69bbd319ffab1c6dd8470b021dc434f3faba89f4a2a01b33bdbdd08b";
+    private static final String KG_RSA_E = "010001";
 
     /**
      * 创建酷狗概念版登录二维码。
@@ -346,13 +349,16 @@ public class QrLoginService {
             String guid = randomGuid();
             String mid = new java.math.BigInteger(
                     md5Hex(guid), 16).toString();
+            // 概念版云歌单/播放授权需要设备标识 dfid，扫码成功后顺手注册设备
+            String dfid = registerDevice(token, userId, guid, mid);
             data.put("status", "success");
             data.put("userId", userId);
             data.put("cookie", "token=" + token
                     + "; userid=" + userId
                     + "; KugooID=" + userId
                     + "; KUGOU_API_GUID=" + guid
-                    + "; KUGOU_API_MID=" + mid);
+                    + "; KUGOU_API_MID=" + mid
+                    + (dfid.isBlank() ? "" : "; dfid=" + dfid));
         } else if (status == 2 || status == 3) {
             data.put("status", "scanned");
             data.put("message", "已扫码，请在酷狗 App 中确认");
@@ -364,6 +370,180 @@ public class QrLoginService {
             data.put("message", "等待扫码");
         }
         return data;
+    }
+
+    /**
+     * 酷狗概念版设备注册：AES 加密设备信息 + RSA 加密 token，换取 dfid。
+     * 云歌单、登录态播放都依赖 dfid，缺失时列表会为空。
+     */
+    /**
+     * 供用户歌单等场景补齐 dfid：老登录态没有 dfid 时也能用。
+     */
+    public String ensureDfid(String token, String userId) {
+        if (token == null || token.isBlank() || userId == null || userId.isBlank()) {
+            return "";
+        }
+        String guid = java.util.UUID.randomUUID().toString();
+        String mid;
+        try {
+            mid = new java.math.BigInteger(md5Hex(guid), 16).toString();
+        } catch (Exception e) {
+            mid = "0";
+        }
+        return registerDevice(token, userId, guid, mid);
+    }
+
+    private String registerDevice(String token, String userId, String guid, String mid) {
+        try {
+            String seed = randomKugouString(6).toLowerCase();
+            String digest = md5Hex(seed);
+            byte[] key = digest.substring(0, 16).getBytes(StandardCharsets.UTF_8);
+            byte[] iv = digest.substring(16, 32).getBytes(StandardCharsets.UTF_8);
+
+            ObjectNode device = MAPPER.createObjectNode();
+            device.put("availableRamSize", 4983533568L);
+            device.put("availableRomSize", 48114719);
+            device.put("availableSDSize", 48114717);
+            device.put("basebandVer", "");
+            device.put("batteryLevel", 100);
+            device.put("batteryStatus", 3);
+            device.put("brand", "Redmi");
+            device.put("buildSerial", "unknown");
+            device.put("device", "marble");
+            device.put("imei", guid);
+            device.put("imsi", "");
+            device.put("manufacturer", "Xiaomi");
+            device.put("uuid", guid);
+
+            String data = aesEncrypt(device.toString(), key, iv);
+            ObjectNode plain = MAPPER.createObjectNode();
+            plain.put("aes", seed);
+            plain.put("uid", userId);
+            plain.put("token", token);
+            String encryptedToken = rsaEncryptPkcs1(plain.toString());
+
+            String clienttime = String.valueOf(System.currentTimeMillis() / 1000);
+            Map<String, String> params = new LinkedHashMap<>();
+            params.put("dfid", "-");
+            params.put("mid", mid);
+            params.put("uuid", "-");
+            params.put("appid", "3116");
+            params.put("clientver", "11440");
+            params.put("clienttime", clienttime);
+            params.put("token", token);
+            params.put("userid", userId);
+            params.put("part", "1");
+            params.put("platid", "1");
+            params.put("p", encryptedToken);
+
+            List<String> keys = new java.util.ArrayList<>(params.keySet());
+            keys.sort(String::compareTo);
+            StringBuilder joined = new StringBuilder();
+            for (String name : keys) {
+                joined.append(name).append('=').append(params.get(name));
+            }
+            params.put("signature", md5Hex(KG_LITE_SIGN + joined + data + KG_LITE_SIGN));
+
+            StringBuilder query = new StringBuilder();
+            for (Map.Entry<String, String> entry : params.entrySet()) {
+                if (query.length() > 0) {
+                    query.append('&');
+                }
+                query.append(java.net.URLEncoder.encode(entry.getKey(), StandardCharsets.UTF_8))
+                        .append('=')
+                        .append(java.net.URLEncoder.encode(entry.getValue(), StandardCharsets.UTF_8));
+            }
+
+            Request request = new Request.Builder()
+                    .url("https://userservice.kugou.com/risk/v2/r_register_dev?" + query)
+                    .header("User-Agent", KG_UA)
+                    .header("dfid", "-")
+                    .header("clienttime", clienttime)
+                    .header("mid", mid)
+                    .header("kg-rc", "1")
+                    .header("kg-thash", "5d816a0")
+                    .header("kg-rec", "1")
+                    .header("kg-rf", "B9EDA08A64250DEFFBCADDEE00F8F25F")
+                    .header("Cookie", "token=" + token + "; userid=" + userId)
+                    .post(RequestBody.create(data, MediaType.parse("application/octet-stream")))
+                    .build();
+            try (Response response = CLIENT.newCall(request).execute()) {
+                if (!response.isSuccessful() || response.body() == null) {
+                    return "";
+                }
+                String body = response.body().string().trim();
+                if (!body.startsWith("{")) {
+                    body = aesDecrypt(body, key, iv);
+                }
+                JsonNode root = MAPPER.readTree(body);
+                String dfid = root.path("data").path("dfid").asText("");
+                if (dfid.isBlank()) {
+                    log.warn("酷狗设备注册未返回 dfid: {}", body.length() > 200 ? body.substring(0, 200) : body);
+                }
+                return dfid;
+            }
+        } catch (Exception e) {
+            log.warn("酷狗设备注册失败: {}", e.getMessage());
+            return "";
+        }
+    }
+
+    private String aesEncrypt(String text, byte[] key, byte[] iv) throws Exception {
+        javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance("AES/CBC/PKCS5Padding");
+        cipher.init(javax.crypto.Cipher.ENCRYPT_MODE,
+                new javax.crypto.spec.SecretKeySpec(key, "AES"),
+                new javax.crypto.spec.IvParameterSpec(iv));
+        return Base64.getEncoder().encodeToString(
+                cipher.doFinal(text.getBytes(StandardCharsets.UTF_8)));
+    }
+
+    private String aesDecrypt(String base64, byte[] key, byte[] iv) throws Exception {
+        javax.crypto.Cipher cipher = javax.crypto.Cipher.getInstance("AES/CBC/PKCS5Padding");
+        cipher.init(javax.crypto.Cipher.DECRYPT_MODE,
+                new javax.crypto.spec.SecretKeySpec(key, "AES"),
+                new javax.crypto.spec.IvParameterSpec(iv));
+        return new String(cipher.doFinal(Base64.getDecoder().decode(base64)), StandardCharsets.UTF_8);
+    }
+
+    /** RSA PKCS#1 v1.5 加密，输出 256 位十六进制（酷狗 1024 位公钥） */
+    private String rsaEncryptPkcs1(String text) {
+        byte[] message = text.getBytes(StandardCharsets.UTF_8);
+        int blockSize = 128;
+        int paddingLength = blockSize - 3 - message.length;
+        if (paddingLength < 8) {
+            throw new IllegalArgumentException("RSA 明文过长");
+        }
+        byte[] block = new byte[blockSize];
+        block[0] = 0;
+        block[1] = 2;
+        java.security.SecureRandom random = new java.security.SecureRandom();
+        for (int i = 0; i < paddingLength; i++) {
+            int value;
+            do {
+                value = random.nextInt(256);
+            } while (value == 0);
+            block[2 + i] = (byte) value;
+        }
+        block[2 + paddingLength] = 0;
+        System.arraycopy(message, 0, block, 3 + paddingLength, message.length);
+        java.math.BigInteger modulus = new java.math.BigInteger(KG_RSA_N, 16);
+        java.math.BigInteger exponent = new java.math.BigInteger(KG_RSA_E, 16);
+        String hex = new java.math.BigInteger(1, block).modPow(exponent, modulus).toString(16);
+        StringBuilder sb = new StringBuilder(hex);
+        while (sb.length() < 256) {
+            sb.insert(0, '0');
+        }
+        return sb.toString().toUpperCase();
+    }
+
+    private String randomKugouString(int length) {
+        String chars = "1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+        StringBuilder sb = new StringBuilder();
+        java.util.Random random = new java.util.Random();
+        for (int i = 0; i < length; i++) {
+            sb.append(chars.charAt(random.nextInt(chars.length())));
+        }
+        return sb.toString();
     }
 
     private Map<String, String> kgBaseParams() {

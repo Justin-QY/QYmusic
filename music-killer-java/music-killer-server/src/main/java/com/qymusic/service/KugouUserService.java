@@ -36,6 +36,41 @@ public class KugouUserService {
     @Resource
     private KugouClient kugouClient;
 
+    @Resource
+    private KugouCatalogService kugouCatalogService;
+
+    @Resource
+    private QrLoginService qrLoginService;
+
+    private String withDfid(String cookie, String userId, String token) {
+        if (!KugouClient.cookieValue(cookie, "dfid").isBlank()) {
+            return cookie;
+        }
+        String dfid = qrLoginService.ensureDfid(token, userId);
+        if (dfid.isBlank()) {
+            log.warn("酷狗设备 dfid 注册失败 userid={}", userId);
+            return cookie;
+        }
+        return cookie + "; dfid=" + dfid;
+    }
+
+    private JsonNode cloudLists(String userId, String token, String cookie, int page, int size) {
+        cookie = withDfid(cookie, userId, token);
+        ObjectNode body = MAPPER.createObjectNode();
+        body.put("userid", parseLong(userId));
+        body.put("token", token);
+        body.put("total_ver", 979);
+        body.put("type", 2);
+        body.put("page", page);
+        body.put("pagesize", size);
+        Map<String, String> extra = new LinkedHashMap<>();
+        extra.put("plat", "1");
+        extra.put("userid", userId);
+        extra.put("token", token);
+        return kugouClient.gatewayPost("/v7/get_all_list", body, extra, cookie,
+                "cloudlist.service.kugou.com");
+    }
+
     public Result<Map<String, Object>> account(String cookie) {
         String userId = userId(cookie);
         if (userId.isBlank()) {
@@ -64,15 +99,7 @@ public class KugouUserService {
         if (userId.isBlank() || token.isBlank()) {
             return Result.error("请先登录酷狗音乐");
         }
-        ObjectNode body = MAPPER.createObjectNode();
-        body.put("userid", parseLong(userId));
-        body.put("token", token);
-        body.put("total_ver", 979);
-        body.put("type", 2);
-        body.put("page", 1);
-        body.put("pagesize", 50);
-        JsonNode root = kugouClient.gatewayPost("/v7/get_all_list", body,
-                java.util.Map.of("plat", "1"), cookie, "cloudlist.service.kugou.com");
+        JsonNode root = cloudLists(userId, token, cookie, 1, 50);
         if (root == null) {
             log.warn("酷狗云歌单接口无响应 userid={}", userId);
         }
@@ -93,10 +120,56 @@ public class KugouUserService {
      * 酷狗概念版没有稳定的「我喜欢」读取接口，按约定返回空列表而不是报错。
      */
     public Result<List<Music>> liked(String cookie, int limit) {
-        if (userId(cookie).isBlank()) {
+        String userId = userId(cookie);
+        String token = KugouClient.cookieValue(cookie, "token");
+        if (userId.isBlank() || token.isBlank()) {
             return Result.error("请先登录酷狗音乐");
         }
-        return Result.success(new ArrayList<>());
+        JsonNode root = cloudLists(userId, token, cookie, 1, 100);
+        JsonNode info = root == null ? null : root.path("data").path("info");
+        long listId = 0L;
+        if (info != null && info.isArray()) {
+            for (JsonNode node : info) {
+                String name = firstNonBlank(node.path("name").asText(""),
+                        node.path("specialname").asText(""));
+                if (name.contains("喜欢") || name.contains("收藏")) {
+                    listId = node.path("listid").asLong(node.path("specialid").asLong(0));
+                    break;
+                }
+            }
+        }
+        if (listId <= 0) {
+            log.info("酷狗账号没有找到喜欢/收藏云歌单 userid={}", userId);
+            return Result.success(new ArrayList<>());
+        }
+        ObjectNode body = MAPPER.createObjectNode();
+        body.put("listid", listId);
+        body.put("userid", parseLong(userId));
+        body.put("area_code", 1);
+        body.put("show_relate_goods", 1);
+        body.put("pagesize", Math.max(1, limit));
+        body.put("allplatform", 1);
+        body.put("show_cover", 1);
+        body.put("type", 0);
+        body.put("token", token);
+        body.put("page", 1);
+        Map<String, String> extra = new LinkedHashMap<>();
+        extra.put("plat", "1");
+        extra.put("userid", userId);
+        extra.put("token", token);
+        JsonNode detail = kugouClient.gatewayPost("/v4/get_list_all_file", body, extra,
+                cookie, "cloudlist.service.kugou.com");
+        JsonNode songs = detail == null ? null : detail.path("data").path("info");
+        List<Music> list = new ArrayList<>();
+        if (songs != null && songs.isArray()) {
+            for (JsonNode node : songs) {
+                Music music = kugouCatalogService.toMusic(node);
+                if (music != null) {
+                    list.add(music);
+                }
+            }
+        }
+        return Result.success(list);
     }
 
     /**

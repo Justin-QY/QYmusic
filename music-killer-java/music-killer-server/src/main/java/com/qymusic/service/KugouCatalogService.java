@@ -491,7 +491,7 @@ public class KugouCatalogService {
         return toMusic(node);
     }
 
-    private Music toMusic(JsonNode node) {
+    public Music toMusic(JsonNode node) {
         if (node == null || node.isMissingNode() || node.isNull()) {
             return null;
         }
