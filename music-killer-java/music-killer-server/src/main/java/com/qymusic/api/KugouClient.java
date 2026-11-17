@@ -61,6 +61,7 @@ public class KugouClient {
     private static final String UA_PC =
             "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
                     + "(KHTML, like Gecko) Chrome/134.0.0.0 Safari/537.36";
+    private static final String REF_MOBILE = "http://m.kugou.com";
 
     /** 概念版 Android 签名盐 */
     private static final String LITE_SIGN = "LnT6xpN3khm36zse0QzvmgTZ3waWdRSA";
@@ -94,8 +95,13 @@ public class KugouClient {
                 + "&platform=WebFilter&format=json"
                 + "&page=" + Math.max(1, page)
                 + "&pagesize=" + Math.min(100, Math.max(1, size))
-                + "&userid=-1&clientver=&tag=em&filter=2&iscorrection=1&privilege_filter=0";
-        return getJson(url, UA_MOBILE, null, null);
+                + "&userid=-1&clientver=&tag=em&filter=2&iscorrection=1&privilege_filter=0"
+                + "&_=" + System.currentTimeMillis();
+        // song_search_v2 不带 Referer 时只返回空壳 data（没有 lists），必须补上手机站来源
+        Map<String, String> headers = new LinkedHashMap<>();
+        headers.put("Referer", REF_MOBILE);
+        headers.put("Accept", "application/json");
+        return getJson(url, UA_MOBILE, headers, null);
     }
 
     public JsonNode searchAlbum(String keyword, int page, int size) {
