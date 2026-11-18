@@ -58,14 +58,14 @@
                 android:layout_width="0dp"
                 android:layout_height="40dp"
                 android:layout_weight="1"
-                android:background="@drawable/bg_login_segment_button"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:stateListAnimator="@null"
                 android:text="扫码"
                 android:textColor="@color/login_segment_text"
                 android:textSize="13sp"
-                app:backgroundTint="@null"
+                app:backgroundTint="@color/login_segment_bg"
+                app:cornerRadius="14dp"
                 app:strokeWidth="0dp" />
 
             <com.google.android.material.button.MaterialButton
@@ -74,14 +74,14 @@
                 android:layout_width="0dp"
                 android:layout_height="40dp"
                 android:layout_weight="1"
-                android:background="@drawable/bg_login_segment_button"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:stateListAnimator="@null"
                 android:text="网页登录"
                 android:textColor="@color/login_segment_text"
                 android:textSize="13sp"
-                app:backgroundTint="@null"
+                app:backgroundTint="@color/login_segment_bg"
+                app:cornerRadius="14dp"
                 app:strokeWidth="0dp" />
 
             <com.google.android.material.button.MaterialButton
@@ -90,14 +90,14 @@
                 android:layout_width="0dp"
                 android:layout_height="40dp"
                 android:layout_weight="1"
-                android:background="@drawable/bg_login_segment_button"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:stateListAnimator="@null"
                 android:text="Cookie"
                 android:textColor="@color/login_segment_text"
                 android:textSize="13sp"
-                app:backgroundTint="@null"
+                app:backgroundTint="@color/login_segment_bg"
+                app:cornerRadius="14dp"
                 app:strokeWidth="0dp" />
 
         </com.google.android.material.button.MaterialButtonToggleGroup>
