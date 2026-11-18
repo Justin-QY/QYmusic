@@ -14,24 +14,16 @@
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:lineSpacingExtra="4dp"
-            android:text="这里的平台决定搜索时可以搜哪些曲库。长按平台行可拖动排序，排序结果就是聚合搜索时的结果顺序。"
-            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-            android:textColor="?attr/colorOnSurfaceVariant" />
-
-        <TextView
-            style="@style/TextAppearance.Material3.LabelLarge"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="22dp"
-            android:layout_marginBottom="8dp"
-            android:text="聚合搜索"
+            android:lineSpacingExtra="3dp"
+            android:text="跨平台搜索"
+            android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
             android:textColor="?attr/colorOnSurfaceVariant" />
 
         <com.google.android.material.card.MaterialCardView
             style="@style/Widget.Material3.CardView.Filled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
             app:cardBackgroundColor="@color/module_card"
             app:cardCornerRadius="24dp"
             app:cardElevation="0dp"
@@ -43,9 +35,9 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:gravity="center_vertical"
-                android:minHeight="76dp"
+                android:minHeight="84dp"
                 android:orientation="horizontal"
-                android:paddingStart="16dp"
+                android:paddingStart="18dp"
                 android:paddingTop="14dp"
                 android:paddingEnd="14dp"
                 android:paddingBottom="14dp">
@@ -59,8 +51,9 @@
                     <TextView
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="聚合搜索"
-                        android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
+                        android:text="跨平台音乐聚合"
+                        android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
+                        android:textSize="19sp" />
 
                     <TextView
                         android:id="@+id/tv_aggregate_state"
@@ -68,8 +61,8 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="2dp"
                         android:lineSpacingExtra="2dp"
-                        android:text="同时搜索多个平台并合并结果，每条结果标注来源平台；默认关闭"
-                        android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+                        android:text="默认关闭；只请求你明确勾选的平台"
+                        android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
                         android:textColor="?attr/colorOnSurfaceVariant" />
 
                 </LinearLayout>
@@ -84,23 +77,15 @@
 
         </com.google.android.material.card.MaterialCardView>
 
-        <TextView
-            style="@style/TextAppearance.Material3.LabelLarge"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="22dp"
-            android:layout_marginBottom="8dp"
-            android:text="已启用 · 长按拖动排序"
-            android:textColor="?attr/colorOnSurfaceVariant" />
-
         <com.google.android.material.card.MaterialCardView
             style="@style/Widget.Material3.CardView.Filled"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
             app:cardBackgroundColor="@color/module_card"
             app:cardCornerRadius="24dp"
             app:cardElevation="0dp"
-            app:contentPadding="6dp"
+            app:contentPadding="0dp"
             app:strokeColor="@color/module_stroke"
             app:strokeWidth="1dp">
 
@@ -114,56 +99,11 @@
         </com.google.android.material.card.MaterialCardView>
 
         <TextView
-            style="@style/TextAppearance.Material3.LabelLarge"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="18dp"
-            android:layout_marginBottom="8dp"
-            android:text="未启用"
-            android:textColor="?attr/colorOnSurfaceVariant" />
-
-        <com.google.android.material.card.MaterialCardView
-            style="@style/Widget.Material3.CardView.Filled"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:cardBackgroundColor="@color/module_card"
-            app:cardCornerRadius="24dp"
-            app:cardElevation="0dp"
-            app:contentPadding="6dp"
-            app:strokeColor="@color/module_stroke"
-            app:strokeWidth="1dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical">
-
-                <LinearLayout
-                    android:id="@+id/ll_disabled"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical" />
-
-                <TextView
-                    android:id="@+id/tv_disabled_empty"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:padding="16dp"
-                    android:text="三个平台都已启用"
-                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    android:visibility="gone" />
-
-            </LinearLayout>
-
-        </com.google.android.material.card.MaterialCardView>
-
-        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:lineSpacingExtra="4dp"
-            android:text="至少保留一个平台。关闭的平台不会出现在搜索页的平台切换里，重新启用后会排在已启用平台末尾。聚合搜索关闭时，搜索页仍按单平台切换查询。"
+            android:text="点击平台切换是否参与聚合搜索，长按可拖动调整结果顺序；至少保留一个平台。聚合关闭时，搜索页仍按单平台切换查询。"
             android:textAppearance="@style/TextAppearance.Material3.BodySmall"
             android:textColor="?attr/colorOnSurfaceVariant" />
 

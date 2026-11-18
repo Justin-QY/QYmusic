@@ -47,7 +47,6 @@ class SearchMusicListFragment :
 
   override fun initView() {
     setupSourceToggle()
-    setupAggregateChips()
 
     binding.toggleSource.addOnButtonCheckedListener { _, checkedId, isChecked ->
       if (!isChecked) {
@@ -92,7 +91,6 @@ class SearchMusicListFragment :
     if (signature != lastConfig) {
       lastConfig = signature
       setupSourceToggle()
-      setupAggregateChips()
       mData.clear()
       pageNo = 1
       binding.page.index = 1
@@ -133,62 +131,7 @@ class SearchMusicListFragment :
     }
     binding.toggleSource.isVisible =
       !SPConfig.isAggregateSearch() && enabled.size > 1
-    binding.groupPlatformFilter.isVisible = SPConfig.isAggregateSearch()
     binding.toggleSource.check(buttonId(searchSource))
-  }
-
-  // ------------------------------------------------------------------ 聚合搜索平台筛选
-
-  private fun setupAggregateChips() {
-    binding.chipAggWy.setOnClickListener { toggleAggregateSource(SPConfig.SOURCE_NETEASE) }
-    binding.chipAggQq.setOnClickListener { toggleAggregateSource(SPConfig.SOURCE_QQ) }
-    binding.chipAggKw.setOnClickListener { toggleAggregateSource(SPConfig.SOURCE_KUGOU) }
-    refreshAggregateChips()
-  }
-
-  /**
-   * 聚合搜索时手动勾选参与平台：直接写回「曲库搜索」的启用集合，
-   * 和设置页保持同一份配置，不需要额外开关。
-   */
-  private fun toggleAggregateSource(source: String) {
-    val enabled = SPConfig.enabledSearchPlatforms()
-    if (source in enabled) {
-      if (!SPConfig.setSearchPlatformEnabled(source, false)) {
-        toast("至少保留一个搜索平台")
-        return
-      }
-      // 关掉的正好是首页曲库时同步切换，避免两处设置不一致
-      if (SPConfig.catalogSource() == source) {
-        SPConfig.enabledSearchPlatforms().firstOrNull()?.let { SPConfig.setCatalogSource(it) }
-      }
-    } else {
-      SPConfig.setSearchPlatformEnabled(source, true)
-    }
-    lastConfig = searchConfigSignature()
-    refreshAggregateChips()
-    mData.clear()
-    pageNo = 1
-    binding.page.index = 1
-    binding.page.refresh()
-  }
-
-  private fun refreshAggregateChips() {
-    val enabled = SPConfig.enabledSearchPlatforms()
-    styleAggregateChip(binding.chipAggWy, SPConfig.SOURCE_NETEASE in enabled)
-    styleAggregateChip(binding.chipAggQq, SPConfig.SOURCE_QQ in enabled)
-    styleAggregateChip(binding.chipAggKw, SPConfig.SOURCE_KUGOU in enabled)
-  }
-
-  private fun styleAggregateChip(chip: android.widget.TextView, selected: Boolean) {
-    chip.setBackgroundResource(
-      if (selected) R.drawable.bg_segment_selected else R.drawable.bg_segment_container
-    )
-    val attr = if (selected) {
-      com.google.android.material.R.attr.colorOnPrimary
-    } else {
-      com.google.android.material.R.attr.colorOnSurfaceVariant
-    }
-    chip.setTextColor(com.google.android.material.color.MaterialColors.getColor(chip, attr))
   }
 
   private fun buttonId(source: String): Int = when (source) {

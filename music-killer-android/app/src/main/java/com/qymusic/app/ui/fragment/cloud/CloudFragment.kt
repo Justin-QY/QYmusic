@@ -166,7 +166,8 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
             invalidateData()
         }
 
-        binding.togglePlatform.isVisible = hasPlatform
+        // 只有一个平台时不需要切换，直接隐藏整条胶囊
+        binding.togglePlatform.isVisible = hasPlatform && platforms.size > 1
         binding.cardNoPlatform.isVisible = !hasPlatform
         orderChips(platforms)
 

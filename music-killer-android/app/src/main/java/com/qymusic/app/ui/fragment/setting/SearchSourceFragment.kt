@@ -9,45 +9,37 @@ import com.qymusic.app.R
 import com.qymusic.app.base.BaseMusicAppbarFragment
 import com.qymusic.app.config.SPConfig
 import com.qymusic.app.databinding.FragmentSearchSourceBinding
-import com.qymusic.app.databinding.ItemModulePluginBinding
-import com.qymusic.app.databinding.ItemModulePluginDisabledBinding
+import com.qymusic.app.databinding.ItemSearchPlatformBinding
 import com.qymusic.app.ui.widget.DragSortSupport
 
 /**
- * 曲库搜索设置。
+ * 曲库搜索设置（设置 → 界面设置 → 曲库搜索）。
  *
- * - 聚合搜索开关：关闭时搜索页只查当前选中的单个平台（默认关闭）；
- *   开启后按下面启用的平台顺序并发搜索并合并结果，每条结果标注来源平台。
- * - 平台开关与排序：三个平台默认全部启用，至少保留一个。
- *
- * 数据全部读写 [SPConfig]，搜索页每次进入都会重新读取。
+ * - 跨平台音乐聚合：默认关闭，只请求明确勾选的平台；
+ * - 平台列表：点击切换是否参与聚合搜索，长按拖动调整结果顺序，至少保留一个平台；
+ * - 关闭当前首页曲库对应的平台时，首页曲库自动切到剩余平台，避免两处配置不一致。
  */
 class SearchSourceFragment :
   BaseMusicAppbarFragment<FragmentSearchSourceBinding>(R.layout.fragment_search_source) {
 
-  private data class PlatformInfo(
-    val key: String,
-    val name: String,
-    val avatar: String,
-    val desc: String,
-  )
+  private data class PlatformInfo(val key: String, val name: String)
 
   private companion object {
     val PLATFORMS = listOf(
-      PlatformInfo(SPConfig.SOURCE_NETEASE, "网易云", "网", "网易云曲库搜索"),
-      PlatformInfo(SPConfig.SOURCE_QQ, "QQ音乐", "Q", "QQ 音乐曲库搜索"),
-      PlatformInfo(SPConfig.SOURCE_KUGOU, "酷狗", "酷", "酷狗概念版曲库搜索"),
+      PlatformInfo(SPConfig.SOURCE_NETEASE, "网易云音乐"),
+      PlatformInfo(SPConfig.SOURCE_QQ, "QQ音乐"),
+      PlatformInfo(SPConfig.SOURCE_KUGOU, "酷狗"),
     )
   }
 
-  private val enabledAdapter = EnabledPlatformAdapter()
+  private val adapter = PlatformAdapter()
 
   private var syncingSwitch = false
 
   override fun initView() {
     binding.rvPlatforms.layoutManager = LinearLayoutManager(requireContext())
-    binding.rvPlatforms.adapter = enabledAdapter
-    DragSortSupport.attach(binding.rvPlatforms, enabledAdapter::move, ::savePlatformOrder)
+    binding.rvPlatforms.adapter = adapter
+    DragSortSupport.attach(binding.rvPlatforms, adapter::move, ::savePlatformOrder)
 
     binding.switchAggregate.setOnCheckedChangeListener { _, checked ->
       if (syncingSwitch) {
@@ -55,7 +47,7 @@ class SearchSourceFragment :
       }
       SPConfig.setAggregateSearch(checked)
       syncAggregateState()
-      toast(if (checked) "已开启聚合搜索" else "已关闭聚合搜索")
+      toast(if (checked) "已开启跨平台聚合" else "已关闭跨平台聚合")
     }
   }
 
@@ -74,76 +66,62 @@ class SearchSourceFragment :
     binding.switchAggregate.isChecked = enabled
     syncingSwitch = false
     binding.tvAggregateState.text = if (enabled) {
-      "已开启 · 同时搜索启用的平台，结果按上方顺序合并并标注来源"
+      "已开启 · 按下方启用的平台并发搜索并合并结果"
     } else {
-      "同时搜索多个平台并合并结果，每条结果标注来源平台；默认关闭"
+      "默认关闭；只请求你明确勾选的平台"
     }
   }
 
-  // ------------------------------------------------------------------ 平台分组
+  // ------------------------------------------------------------------ 平台列表
 
   private fun renderPlatforms() {
-    val enabledKeys = SPConfig.enabledSearchPlatforms()
-    enabledAdapter.submit(enabledKeys.mapNotNull { key -> PLATFORMS.firstOrNull { it.key == key } })
-
-    val disabled = PLATFORMS.filter { it.key !in enabledKeys }
-    binding.llDisabled.removeAllViews()
-    disabled.forEach { item ->
-      val row = ItemModulePluginDisabledBinding.inflate(layoutInflater, binding.llDisabled, false)
-      row.tvPluginAvatar.text = item.avatar
-      row.tvPluginName.text = item.name
-      row.tvPluginVersion.text = "已关闭"
-      row.tvPluginDesc.text = item.desc
-      row.btnPluginEnable.setOnClickListener { setPlatformEnabled(item.key, true) }
-      binding.llDisabled.addView(row.root)
-    }
-    binding.tvDisabledEmpty.isVisible = disabled.isEmpty()
+    val order = SPConfig.searchPlatformOrder()
+    adapter.submit(order.mapNotNull { key -> PLATFORMS.firstOrNull { it.key == key } })
+    adapter.setEnabled(SPConfig.enabledSearchPlatforms())
   }
 
-  private fun setPlatformEnabled(platform: String, enabled: Boolean) {
-    val name = PLATFORMS.firstOrNull { it.key == platform }?.name ?: "该平台"
-    if (!SPConfig.setSearchPlatformEnabled(platform, enabled)) {
-      toast("至少保留一个搜索平台")
-      renderPlatforms()
-      return
-    }
-
-    // 关闭的正好是首页曲库时，同步把首页曲库切到剩余平台里排在最前的那个，
-    // 避免「曲库选了 QQ、搜索平台只剩酷狗」这种两处配置打架的情况。
-    if (!enabled && SPConfig.catalogSource() == platform) {
-      val fallback = SPConfig.enabledSearchPlatforms().firstOrNull()
-      if (fallback != null && fallback != platform) {
-        SPConfig.setCatalogSource(fallback)
-        renderPlatforms()
-        toast("已关闭$name，首页曲库同步改为${labelOf(fallback)}")
+  private fun togglePlatform(platform: String) {
+    val enabled = SPConfig.enabledSearchPlatforms()
+    if (platform in enabled) {
+      if (!SPConfig.setSearchPlatformEnabled(platform, false)) {
+        toast("至少保留一个搜索平台")
         return
       }
+      // 关掉的正好是首页曲库时同步切换，避免两处设置不一致
+      if (SPConfig.catalogSource() == platform) {
+        SPConfig.enabledSearchPlatforms().firstOrNull()?.let { SPConfig.setCatalogSource(it) }
+      }
+    } else {
+      SPConfig.setSearchPlatformEnabled(platform, true)
     }
-
     renderPlatforms()
-    toast(if (enabled) "已启用$name" else "已关闭$name")
   }
 
-  private fun labelOf(platform: String): String =
-    PLATFORMS.firstOrNull { it.key == platform }?.name ?: platform
-
   private fun savePlatformOrder() {
-    SPConfig.applySearchPlatformOrder(enabledAdapter.keys())
+    val enabled = SPConfig.enabledSearchPlatforms()
+    SPConfig.applySearchPlatformOrder(adapter.keys().filter { it in enabled })
   }
 
   // ------------------------------------------------------------------ 适配器
 
-  private inner class EnabledPlatformAdapter :
-    RecyclerView.Adapter<EnabledPlatformAdapter.Holder>() {
+  private inner class PlatformAdapter :
+    RecyclerView.Adapter<PlatformAdapter.Holder>() {
 
     private val items = mutableListOf<PlatformInfo>()
 
-    inner class Holder(val itemBinding: ItemModulePluginBinding) :
+    private var enabledKeys: Set<String> = emptySet()
+
+    inner class Holder(val itemBinding: ItemSearchPlatformBinding) :
       RecyclerView.ViewHolder(itemBinding.root)
 
     fun submit(list: List<PlatformInfo>) {
       items.clear()
       items.addAll(list)
+      notifyDataSetChanged()
+    }
+
+    fun setEnabled(keys: Set<String>) {
+      enabledKeys = keys
       notifyDataSetChanged()
     }
 
@@ -161,23 +139,16 @@ class SearchSourceFragment :
     override fun getItemCount(): Int = items.size
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder =
-      Holder(ItemModulePluginBinding.inflate(layoutInflater, parent, false))
+      Holder(ItemSearchPlatformBinding.inflate(layoutInflater, parent, false))
 
     override fun onBindViewHolder(holder: Holder, position: Int) {
       val item = items[position]
+      val on = item.key in enabledKeys
       with(holder.itemBinding) {
-        tvPluginAvatar.text = item.avatar
-        tvPluginName.text = item.name
-        tvPluginVersion.text = ""
-        tvPluginDesc.text = item.desc
-        // 复用行时先摘掉监听，避免复用时把旧状态写回配置
-        switchPlugin.setOnCheckedChangeListener(null)
-        switchPlugin.isChecked = true
-        switchPlugin.setOnCheckedChangeListener { _, checked ->
-          if (!checked) {
-            setPlatformEnabled(item.key, false)
-          }
-        }
+        tvPlatformName.text = item.name
+        tvPlatformEnabled.isVisible = on
+        tvPlatformState.text = if (on) "参与聚合搜索" else "未参与请求"
+        root.setOnClickListener { togglePlatform(item.key) }
       }
     }
   }
