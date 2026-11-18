@@ -35,6 +35,15 @@ class QualityFragment :
         binding.groupQuality.check(radioId)
       }
     }
+
+    // 省流量模式：沿用原来的 SPConfig key，播放链路仍在读取时生效
+    binding.switchDataSaver.isChecked = SPConfig.isDataSaver()
+    binding.switchDataSaver.setOnCheckedChangeListener { _, checked ->
+      SPConfig.setDataSaver(checked)
+    }
+    binding.itemDataSaver.setOnClickListener {
+      binding.switchDataSaver.toggle()
+    }
   }
 
   override fun initData() {
@@ -46,6 +55,11 @@ class QualityFragment :
     val id = radios.entries.firstOrNull { it.value == current }?.key ?: R.id.rb_standard
     if (binding.groupQuality.checkedRadioButtonId != id) {
       binding.groupQuality.check(id)
+    }
+
+    val dataSaver = SPConfig.isDataSaver()
+    if (binding.switchDataSaver.isChecked != dataSaver) {
+      binding.switchDataSaver.isChecked = dataSaver
     }
   }
 }

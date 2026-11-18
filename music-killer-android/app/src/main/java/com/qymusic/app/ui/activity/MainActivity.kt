@@ -89,6 +89,9 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
   /** 底部导航栏是否显示：只剩一个模块时隐藏整条导航 */
   private var bottomNavVisible = true
 
+  /** 当前页面是否是一级模块（首页/云端），子页面不显示底栏 */
+  private var currentIsModule = true
+
   var _downloadService: DownloadService? = null
 
   private val onBackPressedCallback = object : OnBackPressedCallback(false) {
@@ -239,6 +242,11 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
 
     navController.addOnDestinationChangedListener { controller, destination, arguments ->
       mainViewModel.changeBottomBarVisible(destination.shouldShowBottomNav())
+      // 只有一级模块显示底部导航，设置/详情等子页面隐藏
+      currentIsModule = com.qymusic.app.config.NavModules.find(destination.id) != null
+      binding.bottomNav.visibility =
+        if (bottomNavVisible && currentIsModule) View.VISIBLE else View.GONE
+      applyBottomMetrics()
       // 返回到已被隐藏的模块时（例如设置页返回云端），自动切到仍显示的模块
       binding.bottomNav.post { ensureVisibleDestination(controller) }
     }
@@ -254,7 +262,7 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
    * 冷启动后按「默认启动页」跳转（设置 → 通用设置）。
    *
    * 只处理从桌面正常启动：savedInstanceState 为空、ACTION_MAIN、无 data、非最近任务恢复，
-   * 因此深链、通知、分享进入仍走原有路由，旋转屏幕 / 切换主题或语言引起的重建也不会重复跳转。
+   * 因此深链、通知、分享进入仍走原有路由，旋转屏幕 / 切换主题引起的重建也不会重复跳转。
    * 跳转时把原起始页一起清出返回栈，避免按返回又回到首页。
    */
   private fun applyDefaultStartPage(
@@ -344,7 +352,7 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     if (!this::bottomBarBehavior.isInitialized) {
       return
     }
-    val navReserve = if (bottomNavVisible) bottomNavHeight else 0
+    val navReserve = if (bottomNavVisible && currentIsModule) bottomNavHeight else 0
     bottomBarBehavior.peekHeight = playerBarHeight + navReserve + navigationBarInset
     binding.bottomBar.updatePadding(bottom = navReserve + navigationBarInset)
     binding.navHostFragment.updateLayoutParams<ViewGroup.MarginLayoutParams> {

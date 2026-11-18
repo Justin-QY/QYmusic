@@ -19,6 +19,7 @@ import com.qymusic.app.ui.fragment.artist.ArtistFragment
 import com.qymusic.app.ui.fragment.playlist.PlayListFragment
 import com.qymusic.app.ui.fragment.rank.RankFragment
 import com.qymusic.app.ui.fragment.recommend.RecommendFragment
+import com.qymusic.app.utils.SleepTimerDialog
 
 class HomeFragment : BaseMusicAppbarFragment<FragmentHomeBinding>(R.layout.fragment_home),
   MenuProvider {
@@ -61,6 +62,10 @@ class HomeFragment : BaseMusicAppbarFragment<FragmentHomeBinding>(R.layout.fragm
     when (menuItem.itemId) {
       R.id.search -> {
         navController.navigate(HomeFragmentDirections.actionSearch())
+      }
+
+      R.id.sleep_timer -> {
+        SleepTimerDialog.show(requireContext())
       }
 
       R.id.play_queue -> {

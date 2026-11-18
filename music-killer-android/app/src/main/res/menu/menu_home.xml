@@ -9,6 +9,12 @@
         app:showAsAction="always" />
 
     <item
+        android:id="@+id/sleep_timer"
+        android:icon="@drawable/ic_sleep_timer_24"
+        android:title="定时播放"
+        app:showAsAction="always" />
+
+    <item
         android:id="@+id/play_queue"
         android:icon="@drawable/baseline_queue_music_24"
         android:title="播放列表"

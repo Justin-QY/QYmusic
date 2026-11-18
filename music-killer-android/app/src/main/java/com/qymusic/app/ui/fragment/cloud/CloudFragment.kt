@@ -31,6 +31,7 @@ import com.qymusic.app.model.MusicModel
 import com.qymusic.app.model.PlayListModel
 import com.qymusic.app.model.setupMusicRv
 import com.qymusic.app.ui.activity.PlatformLoginActivity
+import com.qymusic.app.utils.SleepTimerDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /**
@@ -606,6 +607,11 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         when (menuItem.itemId) {
             R.id.search -> {
                 navController.navigate(R.id.action_search)
+                return true
+            }
+
+            R.id.sleep_timer -> {
+                SleepTimerDialog.show(requireContext())
                 return true
             }
 

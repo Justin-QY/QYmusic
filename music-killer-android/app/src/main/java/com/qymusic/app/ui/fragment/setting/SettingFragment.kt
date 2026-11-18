@@ -7,21 +7,16 @@ import android.content.Intent
 import android.graphics.Color
 import android.os.Handler
 import android.os.Looper
-import android.text.InputType
-import android.widget.EditText
-import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
-import com.bumptech.glide.Glide
 import com.drake.net.Get
 import com.drake.tooltip.toast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import com.qymusic.app.BuildConfig
-import com.qymusic.app.QYMusicApplication
 import com.qymusic.app.R
 import com.qymusic.app.base.BaseMusicAppbarFragment
 import com.qymusic.app.config.Api
@@ -32,8 +27,8 @@ import com.qymusic.app.model.LxScriptModel
 import com.qymusic.app.utils.AppStorage
 import com.qymusic.app.utils.AppUpdater
 import com.qymusic.app.utils.SleepTimer
+import com.qymusic.app.utils.SleepTimerDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import java.io.File
 
 /**
  * 设置页：按设计稿重组为「当前配置 / 曲库 / 播放 / 播放音源 / 通用 / 关于与联系」
@@ -74,12 +69,13 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         binding.itemManageSource.setOnClickListener {
             findNavController().navigate(R.id.action_setting_source)
         }
-        binding.btnClearCache.setOnClickListener { clearCache() }
         binding.itemStorageManager.setOnClickListener {
             findNavController().navigate(R.id.action_setting_storage)
         }
 
-        binding.itemSleepTimer.setOnClickListener { showSleepTimerDialog() }
+        binding.itemSleepTimer.setOnClickListener {
+            SleepTimerDialog.show(requireContext()) { updateSleepTimerState() }
+        }
         binding.itemLyricSettings.setOnClickListener {
             findNavController().navigate(R.id.action_setting_lyrics)
         }
@@ -115,7 +111,6 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
     override fun onResume() {
         super.onResume()
         refreshSummary()
-        refreshCacheSize()
         refreshStorageSummary()
         countScripts()
         updateSleepTimerState()
@@ -156,7 +151,6 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
             else -> "ChKSz API · 未启用"
         }
 
-        binding.switchDataSaver.isChecked = SPConfig.isDataSaver()
         binding.switchTranslation.isChecked = SPConfig.isShowTranslation()
         binding.tvLyricSettingsState.text = buildLyricSettingsSummary()
         binding.tvUpdateState.text = "当前 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
@@ -168,7 +162,7 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         binding.tvNavManagerState.text =
             "${com.qymusic.app.config.NavModules.visible().size} 个模块显示在底栏，点击管理"
 
-        // 通用设置入口摘要：语言 · 主题 · 默认启动页
+        // 通用设置入口摘要：主题 · 默认启动页
         binding.tvGeneralSettingsState.text = GeneralSettingsFragment.summary()
     }
 
@@ -271,9 +265,6 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
     // ------------------------------------------------------------------ 开关
 
     private fun initSwitches() {
-        binding.switchDataSaver.setOnCheckedChangeListener { _, checked ->
-            SPConfig.setDataSaver(checked)
-        }
         binding.switchTranslation.setOnCheckedChangeListener { _, checked ->
             SPConfig.setShowTranslation(checked)
         }
@@ -281,113 +272,18 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
 
     // ------------------------------------------------------------------ 定时播放
 
-    /**
-     * 定时播放入口：
-     * - 未开启时弹预设（15/30/60/90 分钟）与自定义分钟数；
-     * - 已开启时显示剩余时间，可重新设置或取消。
-     */
-    private fun showSleepTimerDialog() {
-        if (!isAdded) {
-            return
-        }
-        if (SleepTimer.isActive()) {
-            MaterialAlertDialogBuilder(requireContext())
-                .setTitle("定时播放")
-                .setMessage("剩余 " + formatSleepRemaining(SleepTimer.remainingMs()) + " 后自动暂停播放。")
-                .setPositiveButton("重新设置") { _, _ -> showSleepTimerPresets() }
-                .setNeutralButton("取消定时") { _, _ ->
-                    SleepTimer.cancel()
-                    updateSleepTimerState()
-                    toast("已取消定时播放")
-                }
-                .setNegativeButton("关闭", null)
-                .show()
-            return
-        }
-        showSleepTimerPresets()
-    }
-
-    private fun showSleepTimerPresets() {
-        val presets = intArrayOf(15, 30, 60, 90)
-        val labels = arrayOf("15 分钟", "30 分钟", "60 分钟", "90 分钟", "自定义分钟数…")
-        var selected = 0
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle("定时播放")
-            .setSingleChoiceItems(labels, selected) { _, which -> selected = which }
-            .setNegativeButton("取消", null)
-            .setPositiveButton("开始") { _, _ ->
-                if (selected < presets.size) {
-                    startSleepTimer(presets[selected])
-                } else {
-                    showCustomMinutesDialog()
-                }
-            }
-            .show()
-    }
-
-    private fun showCustomMinutesDialog() {
-        val density = resources.displayMetrics.density
-        val input = EditText(requireContext()).apply {
-            inputType = InputType.TYPE_CLASS_NUMBER
-            hint = "1 - 600 分钟"
-            setSingleLine()
-        }
-        val container = FrameLayout(requireContext()).apply {
-            val horizontal = (22 * density).toInt()
-            setPadding(horizontal, (8 * density).toInt(), horizontal, 0)
-            addView(
-                input,
-                FrameLayout.LayoutParams(
-                    FrameLayout.LayoutParams.MATCH_PARENT,
-                    FrameLayout.LayoutParams.WRAP_CONTENT
-                )
-            )
-        }
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle("自定义分钟数")
-            .setView(container)
-            .setNegativeButton("取消", null)
-            .setPositiveButton("开始") { _, _ ->
-                val minutes = input.text.toString().trim().toIntOrNull()
-                if (minutes == null || minutes <= 0 || minutes > 600) {
-                    toast("请输入 1 - 600 之间的分钟数")
-                    return@setPositiveButton
-                }
-                startSleepTimer(minutes)
-            }
-            .show()
-    }
-
-    private fun startSleepTimer(minutes: Int) {
-        SleepTimer.start(minutes)
-        updateSleepTimerState()
-        toast("已开启定时播放：$minutes 分钟后暂停")
-    }
-
+    /** 定时状态文案；弹窗本身由共享的 SleepTimerDialog 负责，与右上角菜单入口一致 */
     private fun updateSleepTimerState() {
         if (!isAdded || !::baseContentBinding.isInitialized) {
             return
         }
         val text = if (SleepTimer.isActive()) {
-            "剩余 " + formatSleepRemaining(SleepTimer.remainingMs()) + " 后暂停 · 点击取消"
+            "剩余 " + SleepTimerDialog.formatRemaining(SleepTimer.remainingMs()) + " 后暂停 · 点击取消"
         } else {
             "到点自动暂停播放"
         }
         if (binding.tvSleepTimerState.text.toString() != text) {
             binding.tvSleepTimerState.text = text
-        }
-    }
-
-    /** 小于一小时显示 mm:ss，超过一小时显示 h:mm:ss */
-    private fun formatSleepRemaining(ms: Long): String {
-        val totalSeconds = (ms / 1000).coerceAtLeast(0L)
-        val hours = totalSeconds / 3600
-        val minutes = totalSeconds % 3600 / 60
-        val seconds = totalSeconds % 60
-        return if (hours > 0) {
-            String.format("%d:%02d:%02d", hours, minutes, seconds)
-        } else {
-            String.format("%02d:%02d", minutes, seconds)
         }
     }
 
@@ -416,14 +312,7 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         }
     }
 
-    // ------------------------------------------------------------------ 缓存
-
-    private fun refreshCacheSize() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            val size = withContext(Dispatchers.IO) { calculateCacheSize() }
-            binding.tvCacheSize.text = "已占用 ${formatSize(size)}，点击清除"
-        }
-    }
+    // ------------------------------------------------------------------ 存储管理
 
     /** 存储管理入口右侧摘要：音频、图片、下载与临时文件的总占用 */
     private fun refreshStorageSummary() {
@@ -434,39 +323,6 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
             binding.tvStorageSummary.text =
                 "共占用 ${AppStorage.formatSize(total)}，点击查看明细"
         }
-    }
-
-    private fun calculateCacheSize(): Long {
-        val dirs = listOfNotNull(requireContext().cacheDir, requireContext().externalCacheDir)
-        return dirs.sumOf { dir -> dir.walkTopDown().filter { it.isFile }.sumOf { it.length() } }
-    }
-
-    private fun clearCache() {
-        viewLifecycleOwner.lifecycleScope.launch {
-            withContext(Dispatchers.IO) {
-                runCatching {
-                    QYMusicApplication.simpleCache.keys.toList().forEach {
-                        QYMusicApplication.simpleCache.removeResource(it)
-                    }
-                    Glide.get(requireContext()).clearDiskCache()
-                    requireContext().cacheDir?.listFiles()?.forEach { file ->
-                        if (file.name != "media_cache") {
-                            file.deleteRecursively()
-                        }
-                    }
-                    File(requireContext().cacheDir, "update").deleteRecursively()
-                }
-            }
-            Glide.get(requireContext()).clearMemory()
-            toast("缓存已清除")
-            refreshCacheSize()
-        }
-    }
-
-    private fun formatSize(bytes: Long): String {
-        if (bytes <= 0) return "0 MB"
-        val mb = bytes / 1024.0 / 1024.0
-        return if (mb < 1) "${bytes / 1024} KB" else String.format("%.1f MB", mb)
     }
 
     // ------------------------------------------------------------------ 官网 / 邮件

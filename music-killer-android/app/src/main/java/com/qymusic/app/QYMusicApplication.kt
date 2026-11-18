@@ -58,8 +58,6 @@ class QYMusicApplication : Application() {
 
     // 应用用户选择的主题（-1 跟随系统 / 1 浅色 / 2 深色）
     AppCompatDelegate.setDefaultNightMode(com.qymusic.app.config.SPConfig.themeMode())
-    // 恢复应用内语言（API 33+ 系统级，低版本由 AppCompat 兜底）
-    com.qymusic.app.config.AppLocale.applySaved()
 
     CrashHandler.getInstance().init()
 

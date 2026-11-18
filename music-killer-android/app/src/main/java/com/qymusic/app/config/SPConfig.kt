@@ -238,28 +238,6 @@ object SPConfig {
   // ------------------------------------------------------------------ 通用设置
 
   /**
-   * 系统语言：system 跟随系统 / zh 简体中文 / en English。
-   * 项目暂时没有独立的英文资源，英文选项先只写入配置，
-   * 由 AppCompat 的 per-app language 机制决定实际生效范围。
-   */
-  const val APP_LANGUAGE = "app_language"
-
-  const val LANGUAGE_SYSTEM = "system"
-  const val LANGUAGE_ZH = "zh"
-  const val LANGUAGE_EN = "en"
-
-  fun appLanguage(): String {
-    val language = APP_LANGUAGE.getRequired(LANGUAGE_SYSTEM)
-    return if (language in SUPPORTED_LANGUAGES) language else LANGUAGE_SYSTEM
-  }
-
-  fun setAppLanguage(language: String) {
-    APP_LANGUAGE put if (language in SUPPORTED_LANGUAGES) language else LANGUAGE_SYSTEM
-  }
-
-  val SUPPORTED_LANGUAGES = listOf(LANGUAGE_SYSTEM, LANGUAGE_ZH, LANGUAGE_EN)
-
-  /**
    * 默认启动页：保存 NavModules 的稳定 key（home / cloud），默认首页。
    * 实际跳转时由 NavModules.startPage() 过滤被隐藏的模块。
    */
