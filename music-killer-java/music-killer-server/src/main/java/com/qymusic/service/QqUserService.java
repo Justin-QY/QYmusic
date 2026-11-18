@@ -74,15 +74,29 @@ public class QqUserService {
         if (uin.isBlank()) {
             return Result.error("QQ 登录信息不完整，请重新登录");
         }
-        JsonNode data = qqMusicClient.userPlaylists(cookie, uin);
-        JsonNode array = data == null ? null : data.path("v_playlist");
+        JsonNode data = qqMusicClient.userCreatedDiss(cookie, uin);
+        JsonNode array = data == null ? null : data.path("data").path("disslist");
         List<PlayList> list = new ArrayList<>();
         if (array != null && array.isArray()) {
             for (JsonNode node : array) {
-                PlayList playlist = qqCatalogService.mapPlaylist(node);
-                if (playlist.getId() != null && playlist.getId() > 0) {
-                    list.add(playlist);
+                long id = node.path("tid").asLong(node.path("dissid").asLong(0));
+                String name = node.path("diss_name").asText(node.path("name").asText(""));
+                if (id <= 0 || name.isBlank()) {
+                    continue;
                 }
+                PlayList playlist = new PlayList();
+                playlist.setId(id);
+                playlist.setName(name);
+                String cover = node.path("diss_cover").asText("");
+                if (cover.startsWith("?")) {
+                    cover = "";
+                }
+                playlist.setImg(cover);
+                playlist.setImg700(cover);
+                playlist.setTotal(node.path("song_cnt").asInt(node.path("trackCount").asInt(0)));
+                playlist.setListencnt(node.path("listen_num").asLong(0));
+                playlist.setUname("QQ音乐");
+                list.add(playlist);
             }
         }
         return Result.success(list);
@@ -92,34 +106,56 @@ public class QqUserService {
         if (!StringUtils.hasText(cookie)) {
             return Result.error("请先登录 QQ 音乐");
         }
-        String uin = cookieValue(cookie, "uin").replaceAll("\\D", "");
-        JsonNode data = qqMusicClient.userPlaylists(cookie, uin);
-        JsonNode array = data == null ? null : data.path("v_playlist");
-        long likedId = 0L;
-        if (array != null && array.isArray()) {
-            for (JsonNode node : array) {
-                int dirId = node.path("dirId").asInt(node.path("dirid").asInt(0));
-                if (dirId == 201) {
-                    likedId = node.path("dissid").asLong(node.path("tid").asLong(0));
-                    break;
-                }
-            }
-        }
-        if (likedId <= 0) {
-            return Result.success(List.of());
-        }
-        JsonNode detail = qqMusicClient.playlistDetail(likedId, 0, Math.max(1, limit), cookie);
-        JsonNode songs = detail == null ? null : detail.path("songlist");
+        List<String> mids = qqMusicClient.favoriteMids(cookie);
         List<Music> list = new ArrayList<>();
-        if (songs != null && songs.isArray()) {
-            for (JsonNode node : songs) {
-                Music music = qqCatalogService.mapSong(node);
-                if (music != null) {
-                    list.add(music);
-                }
+        int max = Math.max(1, limit);
+        for (String mid : mids) {
+            if (list.size() >= max) {
+                break;
+            }
+            JsonNode song = qqMusicClient.songByMidWeb(mid);
+            if (song == null) {
+                continue;
+            }
+            Music music = new Music();
+            music.setSource("qq");
+            music.setSourceId(mid);
+            music.setId(QqCatalogService.hash64(mid));
+            music.setName(song.path("name").asText(""));
+            music.setArtist(joinSingers(song.path("singer")));
+            String albumMid = song.path("album").path("mid").asText("");
+            music.setAlbum(song.path("album").path("name").asText(""));
+            music.setAlbumId(albumMid.isBlank() ? 0L : QqCatalogService.hash64(albumMid));
+            String pic = albumMid.isBlank() ? ""
+                    : "https://y.gtimg.cn/music/photo_new/T002R300x300M000" + albumMid + ".jpg";
+            music.setPic(pic);
+            music.setPic120(pic);
+            music.setAlbumPic(pic);
+            music.setDuration(song.path("interval").asInt(0));
+            music.setHasLossless(true);
+            if (!music.getName().isBlank()) {
+                list.add(music);
             }
         }
         return Result.success(list);
+    }
+
+    private String joinSingers(JsonNode singers) {
+        if (singers == null || !singers.isArray()) {
+            return "";
+        }
+        StringBuilder sb = new StringBuilder();
+        for (JsonNode singer : singers) {
+            String name = singer.path("name").asText("");
+            if (name.isBlank()) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append(" / ");
+            }
+            sb.append(name);
+        }
+        return sb.toString();
     }
 
     private String cookieValue(String cookie, String name) {

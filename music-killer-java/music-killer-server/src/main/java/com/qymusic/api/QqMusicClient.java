@@ -58,9 +58,17 @@ public class QqMusicClient {
             comm.put("cv", cv);
             comm.put("platform", "yqq.json");
             comm.put("chid", "0");
-            comm.put("uin", 0);
-            comm.put("g_tk", 0);
-            comm.put("g_tk_new_20200303", 0);
+            String uinText = cookieValue(cookie, "uin").replaceAll("\\D", "");
+            String authst = firstNonBlank(cookieValue(cookie, "qqmusic_key"),
+                    cookieValue(cookie, "qm_keyst"), cookieValue(cookie, "musickey"));
+            try {
+                comm.put("uin", uinText.isBlank() ? 0L : Long.parseLong(uinText));
+            } catch (Exception e) {
+                comm.put("uin", 0L);
+            }
+            comm.put("authst", authst);
+            comm.put("g_tk", 5381);
+            comm.put("g_tk_new_20200303", 5381);
             comm.put("format", "json");
             comm.put("inCharset", "utf-8");
             comm.put("outCharset", "utf-8");
@@ -78,7 +86,7 @@ public class QqMusicClient {
                     .header("Referer", "https://y.qq.com/")
                     .post(RequestBody.create(payload.toString(), JSON));
             if (cookie != null && !cookie.isBlank()) {
-                builder.header("Cookie", cookie);
+                builder.header("Cookie", sanitizeCookie(cookie));
             }
             try (Response response = CLIENT.newCall(builder.build()).execute()) {
                 if (!response.isSuccessful() || response.body() == null) {
@@ -203,6 +211,92 @@ public class QqMusicClient {
     /**
      * 当前登录用户的歌单（含「我喜欢」）
      */
+    /**
+     * 当前登录用户创建/收藏的歌单（网页版 fcg_user_created_diss）。
+     * musicu 的 GetPlaylistByUin 经常返回空或超时，这里改用网页接口。
+     */
+    public JsonNode userCreatedDiss(String cookie, String uin) {
+        try {
+            String url = "https://c.y.qq.com/rsc/fcgi-bin/fcg_user_created_diss"
+                    + "?hostUin=0&hostuin=" + java.net.URLEncoder.encode(uin, java.nio.charset.StandardCharsets.UTF_8)
+                    + "&sin=0&size=200&g_tk=5381&loginUin=0&format=json"
+                    + "&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0";
+            Request.Builder builder = new Request.Builder()
+                    .url(url)
+                    .header("User-Agent", UA)
+                    .header("Referer", "https://y.qq.com/portal/profile.html");
+            if (cookie != null && !cookie.isBlank()) {
+                builder.header("Cookie", sanitizeCookie(cookie));
+            }
+            try (Response response = CLIENT.newCall(builder.build()).execute()) {
+                if (!response.isSuccessful() || response.body() == null) {
+                    return null;
+                }
+                return MAPPER.readTree(response.body().string());
+            }
+        } catch (Exception e) {
+            log.warn("QQ 用户歌单接口失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
+     * 「我喜欢的音乐」歌曲 mid 列表（网页版 getmyfav，免 musicu 签名）。
+     */
+    public java.util.List<String> favoriteMids(String cookie) {
+        java.util.List<String> mids = new java.util.ArrayList<>();
+        try {
+            String url = "https://c.y.qq.com/splcloud/fcgi-bin/fcg_musiclist_getmyfav.fcg"
+                    + "?dirid=201&dirinfo=1&g_tk=5381&format=json";
+            Request.Builder builder = new Request.Builder()
+                    .url(url)
+                    .header("User-Agent", UA)
+                    .header("Referer", "https://y.qq.com/n/yqq/playlist");
+            if (cookie != null && !cookie.isBlank()) {
+                builder.header("Cookie", sanitizeCookie(cookie));
+            }
+            try (Response response = CLIENT.newCall(builder.build()).execute()) {
+                if (!response.isSuccessful() || response.body() == null) {
+                    return mids;
+                }
+                JsonNode root = MAPPER.readTree(response.body().string());
+                JsonNode mapmid = root.path("mapmid");
+                if (mapmid.isObject()) {
+                    mapmid.fieldNames().forEachRemaining(mids::add);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("QQ 喜欢列表接口失败: {}", e.getMessage());
+        }
+        return mids;
+    }
+
+    /**
+     * 按 songmid 取单曲信息（网页版，返回 data[0]）。
+     */
+    public JsonNode songByMidWeb(String mid) {
+        try {
+            String url = "https://c.y.qq.com/v8/fcg-bin/fcg_play_single_song.fcg"
+                    + "?songmid=" + java.net.URLEncoder.encode(mid, java.nio.charset.StandardCharsets.UTF_8)
+                    + "&format=json";
+            Request.Builder builder = new Request.Builder()
+                    .url(url)
+                    .header("User-Agent", UA)
+                    .header("Referer", "https://y.qq.com/");
+            try (Response response = CLIENT.newCall(builder.build()).execute()) {
+                if (!response.isSuccessful() || response.body() == null) {
+                    return null;
+                }
+                JsonNode root = MAPPER.readTree(response.body().string());
+                JsonNode data = root.path("data");
+                return data.isArray() && !data.isEmpty() ? data.get(0) : null;
+            }
+        } catch (Exception e) {
+            log.warn("QQ 单曲信息接口失败: {}", e.getMessage());
+            return null;
+        }
+    }
+
     public JsonNode userPlaylists(String cookie, String uin) {
         ObjectNode param = MAPPER.createObjectNode();
         param.put("uin", uin);
@@ -223,7 +317,7 @@ public class QqMusicClient {
                     .header("User-Agent", UA)
                     .header("Referer", "https://y.qq.com/");
             if (cookie != null && !cookie.isBlank()) {
-                builder.header("Cookie", cookie);
+                builder.header("Cookie", sanitizeCookie(cookie));
             }
             try (Response response = CLIENT.newCall(builder.build()).execute()) {
                 if (!response.isSuccessful() || response.body() == null) {
@@ -235,6 +329,60 @@ public class QqMusicClient {
             log.warn("QQ资料接口失败: {}", e.getMessage());
             return null;
         }
+    }
+
+    private static String sanitizeCookie(String cookie) {
+        if (cookie == null || cookie.isBlank()) {
+            return "";
+        }
+        java.util.Set<String> keep = java.util.Set.of(
+                "uin", "qqmusic_key", "qm_keyst", "musickey", "musicid",
+                "p_skey", "skey", "RK", "qqmusic_uin");
+        StringBuilder sb = new StringBuilder();
+        for (String part : cookie.split(";")) {
+            String[] kv = part.trim().split("=", 2);
+            if (kv.length != 2 || kv[0].isBlank()) {
+                continue;
+            }
+            boolean matched = keep.stream().anyMatch(k -> k.equalsIgnoreCase(kv[0].trim()));
+            if (!matched) {
+                continue;
+            }
+            String value = kv[1].replaceAll("[\\r\\n\\t]", "").trim();
+            if (value.isBlank()) {
+                continue;
+            }
+            if (sb.length() > 0) {
+                sb.append("; ");
+            }
+            sb.append(kv[0].trim()).append('=').append(value);
+        }
+        return sb.toString();
+    }
+
+    private static String cookieValue(String cookie, String name) {
+        if (cookie == null) {
+            return "";
+        }
+        for (String part : cookie.split(";")) {
+            String[] kv = part.trim().split("=", 2);
+            if (kv.length == 2 && kv[0].trim().equalsIgnoreCase(name)) {
+                return kv[1].trim();
+            }
+        }
+        return "";
+    }
+
+    private static String firstNonBlank(String... values) {
+        if (values == null) {
+            return "";
+        }
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return "";
     }
 
     /** QQ 的 g_tk 算法 */
