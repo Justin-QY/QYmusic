@@ -39,7 +39,7 @@ knife4j:
 
 # jwt 閰嶇疆
 jwt:
-  user-secret-key: ${JWT_SECRET:QYMusicJwtSecret2026ChangeMe} # 閮ㄧ讲鏃惰閫氳繃鐜鍙橀噺瑕嗙洊
+  user-secret-key: ${JWT_SECRET:change-me-by-env} # 閮ㄧ讲鏃惰閫氳繃鐜鍙橀噺瑕嗙洊
   user-token-name: Authorization # 璁よ瘉璇锋眰澶寸殑鍚嶇О
   user-ttl: 30d # 鐢ㄦ埛token杩囨湡鏃堕棿
 
