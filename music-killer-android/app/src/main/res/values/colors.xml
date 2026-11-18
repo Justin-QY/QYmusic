@@ -11,4 +11,9 @@
     <!-- 设置页磨砂玻璃 -->
     <color name="glass_card">#B8FFFFFF</color>
     <color name="glass_stroke">#80FFFFFF</color>
+
+    <!-- 模块与插件页：实心浅色卡片，不使用玻璃拟态 -->
+    <color name="module_card">#FFFFFFFF</color>
+    <color name="module_row">#FFF2F3F7</color>
+    <color name="module_stroke">#14000000</color>
 </resources>

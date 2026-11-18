@@ -31,6 +31,7 @@ import com.qymusic.app.model.MusicModel
 import com.qymusic.app.model.PlayListModel
 import com.qymusic.app.model.setupMusicRv
 import com.qymusic.app.ui.activity.PlatformLoginActivity
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /**
  * 云端模块：支持网易云 / QQ 音乐 / 酷狗概念版 三个平台，可同时绑定，
@@ -43,6 +44,9 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         const val DATA_TTL_MS = 60_000L
         const val QR_TIMEOUT_MS = 180_000L
         const val PLAY_QUEUE_TAG = "play_queue_dialog"
+
+        /** 酷狗签到卡默认副标题，接口未返回或查询失败时兜底 */
+        const val KUGOU_VIP_HINT = "每天可领取畅听 VIP 与概念版升级奖励"
     }
 
     private var platform = PlatformLoginActivity.PLATFORM_NETEASE
@@ -55,6 +59,12 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
     /** 当前在跑的数据请求；切平台时取消上一个，避免旧结果覆盖新平台 */
     private var loadJob: kotlinx.coroutines.Job? = null
     private var loadPlatform: String? = null
+
+    /** 酷狗签到卡副标题缓存（会员状态 / 今日签到状态） */
+    private var kugouVipStatusText: String? = null
+    private var kugouVipStatusCookie: String? = null
+    private var kugouVipStatusAt = 0L
+    private var kugouVipStatusJob: kotlinx.coroutines.Job? = null
 
     private var loginDialog: android.app.Dialog? = null
     private var qrJob: kotlinx.coroutines.Job? = null
@@ -106,6 +116,7 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         binding.btnGoSetting.setOnClickListener {
             navController.navigate(R.id.action_setting)
         }
+        binding.btnKugouCheckin.setOnClickListener { checkKugouVip() }
         binding.tvMoreLiked.setOnClickListener { openAll("liked") }
         binding.tvMorePlaylists.setOnClickListener { openAll("playlists") }
         binding.tvMoreArtists.setOnClickListener { openAll("artists") }
@@ -123,10 +134,8 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
                 platform = enabled.first()
             }
             if (!isLogged(platform)) {
-                // 自动切到已登录且已启用的平台
-                SPConfig.ALL_CLOUD_PLATFORMS
-                    .filter { it in enabled }
-                    .firstOrNull { isLogged(it) }
+                // 自动切到已登录且已启用的平台（按保存的排序取第一个）
+                enabled.firstOrNull { isLogged(it) }
                     ?.let { platform = it }
             }
         }
@@ -158,13 +167,12 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
 
         binding.togglePlatform.isVisible = hasPlatform
         binding.cardNoPlatform.isVisible = !hasPlatform
-        binding.chipNetease.isVisible = SPConfig.CLOUD_NETEASE in platforms
-        binding.chipQq.isVisible = SPConfig.CLOUD_QQ in platforms
-        binding.chipKuwo.isVisible = SPConfig.CLOUD_KUGOU in platforms
+        orderChips(platforms)
 
         if (!hasPlatform) {
             binding.cardLogin.isVisible = false
             binding.cardProfile.isVisible = false
+            binding.cardKugouVip.isVisible = false
             binding.groupContent.isVisible = false
             binding.rvLiked.models = emptyList<MusicModel>()
             binding.rvPlaylists.models = emptyList<PlayListModel>()
@@ -176,6 +184,16 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         binding.cardLogin.visibility = if (logged) View.GONE else View.VISIBLE
         binding.cardProfile.visibility = if (logged) View.VISIBLE else View.GONE
         binding.groupContent.visibility = if (logged) View.VISIBLE else View.GONE
+
+        // 酷狗签到卡：仅当前平台为酷狗且已登录时显示
+        val showKugouVip = logged && platform == PlatformLoginActivity.PLATFORM_KUGOU
+        binding.cardKugouVip.isVisible = showKugouVip
+        if (showKugouVip) {
+            binding.tvKugouVipState.text = kugouVipStateText()
+            refreshKugouVipStatus()
+        } else {
+            binding.tvKugouVipState.text = KUGOU_VIP_HINT
+        }
 
         styleChip(binding.chipNetease, platform == PlatformLoginActivity.PLATFORM_NETEASE)
         styleChip(binding.chipQq, platform == PlatformLoginActivity.PLATFORM_QQ)
@@ -209,6 +227,35 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
             .placeholder(R.mipmap.ic_launcher)
             .into(binding.imgAvatar)
         loadData()
+    }
+
+    /**
+     * 按「模块与插件」页保存的顺序重排芯片：只把已启用的平台放入容器，
+     * 顺序没变化时不动视图，避免每次 onResume 都重建。
+     */
+    private fun orderChips(platforms: Set<String>) {
+        val container = binding.togglePlatform
+        val chips = linkedMapOf(
+            SPConfig.CLOUD_NETEASE to binding.chipNetease,
+            SPConfig.CLOUD_QQ to binding.chipQq,
+            SPConfig.CLOUD_KUGOU to binding.chipKuwo,
+        )
+        val ordered = platforms.mapNotNull { chips[it] }
+        val current = (0 until container.childCount).map { container.getChildAt(it) }
+        if (current == ordered) {
+            return
+        }
+        container.removeAllViews()
+        ordered.forEach { chip ->
+            (chip.parent as? android.view.ViewGroup)?.removeView(chip)
+            chip.visibility = View.VISIBLE
+            chip.layoutParams = android.widget.LinearLayout.LayoutParams(
+                0,
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                1f
+            )
+            container.addView(chip)
+        }
     }
 
     private fun styleChip(view: android.widget.TextView, selected: Boolean) {
@@ -689,5 +736,235 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
             }
         }
         return 0L
+    }
+
+    // ------------------------------------------------------------------ 酷狗签到领 VIP
+
+    /** 副标题：优先展示上次查询到的会员 / 签到状态，Cookie 变化后回到默认文案 */
+    private fun kugouVipStateText(): String {
+        val cookie = SPConfig.kugouCookie()
+        val cached = kugouVipStatusText
+        return if (cookie.isNotBlank() && cookie == kugouVipStatusCookie && !cached.isNullOrBlank()) {
+            cached
+        } else {
+            KUGOU_VIP_HINT
+        }
+    }
+
+    /** 进入云端页时静默刷新一次签到状态（60 秒内不重复请求，失败保留默认文案） */
+    private fun refreshKugouVipStatus() {
+        val cookie = SPConfig.kugouCookie()
+        if (cookie.isBlank()) {
+            return
+        }
+        val now = System.currentTimeMillis()
+        if (cookie == kugouVipStatusCookie && now - kugouVipStatusAt < DATA_TTL_MS) {
+            return
+        }
+        if (kugouVipStatusJob?.isActive == true) {
+            return
+        }
+        kugouVipStatusJob = viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val raw = Get<String>(Api.KUGOU_VIP_STATUS) {
+                    addQuery("cookie", cookie)
+                }.await().orEmpty()
+                if (vipError(raw) != null) {
+                    return@launch
+                }
+                val summary = vipSummary(raw).replace("\n", " · ").take(120)
+                if (summary.isBlank()) {
+                    return@launch
+                }
+                kugouVipStatusText = summary
+                kugouVipStatusCookie = cookie
+                kugouVipStatusAt = System.currentTimeMillis()
+                if (isAdded && binding.cardKugouVip.isVisible) {
+                    binding.tvKugouVipState.text = summary
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // 静默失败：接口异常时保留默认文案，点击签到时再给出明确提示
+            }
+        }
+    }
+
+    /**
+     * 签到入口：先查 /kg/vip/status，再弹确认框；确认后调用 /kg/vip/checkin。
+     * 服务端返回结构可能随酷狗侧调整，这里沿用宽松解析，未知字段直接展示原始数据。
+     */
+    private fun checkKugouVip() {
+        if (!isAdded || platform != PlatformLoginActivity.PLATFORM_KUGOU) {
+            return
+        }
+        val cookie = SPConfig.kugouCookie()
+        if (cookie.isBlank() || !SPConfig.isKugouLoggedIn()) {
+            showKugouVipDialog("登录已失效", "酷狗登录信息已失效，请重新登录酷狗概念版账号后再签到。")
+            return
+        }
+        val button = binding.btnKugouCheckin
+        if (!button.isEnabled) {
+            return
+        }
+        button.isEnabled = false
+        button.text = "查询中…"
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val raw = Get<String>(Api.KUGOU_VIP_STATUS) {
+                    addQuery("cookie", cookie)
+                }.await().orEmpty()
+                val error = vipError(raw)
+                if (error != null) {
+                    showKugouVipDialog("查询失败", error)
+                    return@launch
+                }
+                val summary = vipSummary(raw)
+                if (summary.isNotBlank()) {
+                    val compact = summary.replace("\n", " · ").take(120)
+                    kugouVipStatusText = compact
+                    kugouVipStatusCookie = cookie
+                    kugouVipStatusAt = System.currentTimeMillis()
+                    if (binding.cardKugouVip.isVisible) {
+                        binding.tvKugouVipState.text = compact
+                    }
+                }
+                if (!isAdded) {
+                    return@launch
+                }
+                MaterialAlertDialogBuilder(requireContext())
+                    .setTitle("酷狗签到领 VIP")
+                    .setMessage(summary.ifBlank { "点击「立即签到」领取今日 VIP 权益。" })
+                    .setNegativeButton("取消", null)
+                    .setPositiveButton("立即签到") { _, _ -> submitKugouCheckin(cookie) }
+                    .show()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                showKugouVipDialog("登录已失效", "酷狗 Cookie 已失效，请重新登录酷狗账号后再签到。")
+            } finally {
+                resetKugouCheckinButton()
+            }
+        }
+    }
+
+    private fun submitKugouCheckin(cookie: String) {
+        if (!isAdded) {
+            return
+        }
+        binding.btnKugouCheckin.isEnabled = false
+        binding.btnKugouCheckin.text = "签到中…"
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val raw = Get<String>(Api.KUGOU_VIP_CHECKIN) {
+                    addQuery("cookie", cookie)
+                }.await().orEmpty()
+                val error = vipError(raw)
+                if (error != null) {
+                    showKugouVipDialog("签到失败", error)
+                    return@launch
+                }
+                val summary = vipSummary(raw)
+                if (summary.isNotBlank() && binding.cardKugouVip.isVisible) {
+                    binding.tvKugouVipState.text = summary.replace("\n", " · ").take(120)
+                }
+                showKugouVipDialog(
+                    "签到成功",
+                    summary.ifBlank { "今日签到完成，VIP 权益已到账。" }
+                )
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                showKugouVipDialog("登录已失效", "酷狗 Cookie 已失效，请重新登录酷狗账号后再签到。")
+            } finally {
+                resetKugouCheckinButton()
+            }
+        }
+    }
+
+    private fun resetKugouCheckinButton() {
+        if (!isAdded) {
+            return
+        }
+        binding.btnKugouCheckin.isEnabled = true
+        binding.btnKugouCheckin.text = "立即签到"
+    }
+
+    private fun showKugouVipDialog(title: String, message: String) {
+        if (!isAdded) {
+            return
+        }
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(title)
+            .setMessage(message.ifBlank { "暂无数据" })
+            .setPositiveButton("知道了", null)
+            .show()
+    }
+
+    /** 服务端 code 非成功时返回提示文案，成功（或没有 code 字段）返回 null */
+    private fun vipError(raw: String): String? {
+        val json = runCatching { org.json.JSONObject(raw.trim()) }.getOrNull() ?: return null
+        if (!json.has("code")) {
+            return null
+        }
+        val code = json.optInt("code", 0)
+        if (code == 200 || code == 0) {
+            return null
+        }
+        return json.optString("msg")
+            .ifBlank { json.optString("message") }
+            .ifBlank { "Cookie 已失效或未登录，请重新登录酷狗。" }
+    }
+
+    /**
+     * 把 VIP 状态 / 签到结果整理成可读文本。
+     * 字段名不固定，逐个尝试常见命名，全部落空时直接展示原始数据。
+     */
+    private fun vipSummary(raw: String): String {
+        val text = raw.trim()
+        if (text.isEmpty()) {
+            return ""
+        }
+        val json = runCatching { org.json.JSONObject(text) }.getOrNull()
+            ?: return text.take(300)
+        val rawData = json.opt("data")
+        if (rawData is String && rawData.isNotBlank()) {
+            return rawData.take(300)
+        }
+        val data = rawData as? org.json.JSONObject ?: json
+
+        fun field(vararg keys: String): String? = keys.firstNotNullOfOrNull { key ->
+            if (!data.has(key)) {
+                return@firstNotNullOfOrNull null
+            }
+            val value = data.opt(key) ?: return@firstNotNullOfOrNull null
+            val valueText = if (value is Boolean) {
+                if (value) "是" else "否"
+            } else {
+                value.toString()
+            }
+            valueText.takeIf { it.isNotBlank() && it != "null" }
+        }
+
+        val lines = mutableListOf<String>()
+        field("nickname", "nickName", "userName", "nick", "user")?.let { lines += "账号：$it" }
+        field(
+            "isVip", "vip", "isMember", "vipStatus", "member", "vipType", "status", "state"
+        )?.let { lines += "会员状态：$it" }
+        field(
+            "vipExpire", "vipExpireTime", "expireTime", "vipEndTime", "endTime",
+            "expireAt", "vipEndDate", "expireDate"
+        )?.let { lines += "到期时间：$it" }
+        field(
+            "isSign", "todaySign", "todaySignIn", "signed", "signStatus",
+            "checkin", "checkinStatus", "isCheckin"
+        )?.let { lines += "签到状态：$it" }
+        field(
+            "reward", "rewardDesc", "rewardName", "vipDays", "days",
+            "giftName", "gift", "score", "points", "coin"
+        )?.let { lines += "本次奖励：$it" }
+        field("msg", "message", "tips", "desc")?.let { lines += it }
+
+        return if (lines.isEmpty()) data.toString().take(300) else lines.joinToString("\n")
     }
 }

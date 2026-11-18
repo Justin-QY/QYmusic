@@ -245,6 +245,45 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
 
     // 底部导航：按注册表动态生成（可在设置里隐藏模块）
     rebuildBottomNav(navController)
+
+    // 通用设置里的「默认启动页」：冷启动完成后跳到目标模块
+    applyDefaultStartPage(navController, savedInstanceState)
+  }
+
+  /**
+   * 冷启动后按「默认启动页」跳转（设置 → 通用设置）。
+   *
+   * 只处理从桌面正常启动：savedInstanceState 为空、ACTION_MAIN、无 data、非最近任务恢复，
+   * 因此深链、通知、分享进入仍走原有路由，旋转屏幕 / 切换主题或语言引起的重建也不会重复跳转。
+   * 跳转时把原起始页一起清出返回栈，避免按返回又回到首页。
+   */
+  private fun applyDefaultStartPage(
+    navController: androidx.navigation.NavController,
+    savedInstanceState: Bundle?
+  ) {
+    if (savedInstanceState != null) {
+      return
+    }
+    val launchIntent = intent ?: return
+    if (launchIntent.action != Intent.ACTION_MAIN || launchIntent.data != null) {
+      return
+    }
+    if (launchIntent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0) {
+      return
+    }
+
+    // NavModules.startPage() 会在所选模块被隐藏时回落到第一个可见模块
+    val targetId = com.qymusic.app.config.NavModules.startPage().id
+    if (navController.currentDestination?.id == targetId) {
+      return
+    }
+    runCatching {
+      val options = androidx.navigation.NavOptions.Builder()
+        .setPopUpTo(navController.graph.startDestinationId, true)
+        .setLaunchSingleTop(true)
+        .build()
+      navController.navigate(targetId, null, options)
+    }
   }
 
   /**

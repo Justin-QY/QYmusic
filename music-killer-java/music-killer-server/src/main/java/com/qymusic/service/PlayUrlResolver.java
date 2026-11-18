@@ -17,23 +17,26 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorCompletionService;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
+import java.util.function.Supplier;
 
 /**
  * 播放地址解析。
  *
- * <p>按音源分派：</p>
- * <ul>
- *   <li>{@code kg}=酷狗（概念版）：交给 {@link KugouPlayService}；</li>
- *   <li>{@code qq}=QQ 音乐：由 PlayController 直接使用 vkey；</li>
- *   <li>其余（网易云等）：内置洛雪音源脚本与备用聚合接口并行解析，谁先给出通过校验的地址用谁。</li>
- * </ul>
+ * <p>严格串行，前一级拿到可用地址就不再尝试下一级：</p>
+ * <ol>
+ *   <li>平台自带音源：酷狗交给 {@link KugouPlayService}（songinfo v2 / v5 url / getSongInfo）；
+ *       QQ 的原生 vkey 需要登录 Cookie，由 PlayController 先试；网易云没有可用的原生取地址接口；</li>
+ *   <li>内置洛雪音源脚本（按音质逐级降级，每级单独限时）；</li>
+ *   <li>第三方聚合接口（music-api.gdstudio.xyz）。</li>
+ * </ol>
  *
- * <p>拿不到地址时返回 null，由上层返回明确的错误信息。</p>
+ * <p>每一级失败只记录原因、不抛异常，整次解析控制在约 {@code 20s} 内。
+ * 拿不到地址时返回 null，由上层返回明确的错误信息。</p>
  */
 @Slf4j
 @Service
@@ -63,11 +66,23 @@ public class PlayUrlResolver {
     /** 解析缓存的最大条目数（超出后先清理过期项，防止长期运行内存增长） */
     private static final int MAX_CACHE_SIZE = 5000;
 
-    /** 多路并行解析的总预算 */
-    private static final long PARALLEL_BUDGET_MS = 20_000L;
+    /** 一次解析的总预算：平台原生 → 音源脚本 → 第三方聚合，串行执行 */
+    private static final long TOTAL_BUDGET_MS = 20_000L;
+
+    /** 平台原生接口的预算（超时即放弃，交给后面的兜底链路） */
+    private static final long NATIVE_BUDGET_MS = 10_000L;
 
     /** 音源脚本单级音质的预算（拿不到就降一级，避免一直等） */
-    private static final long LX_STEP_BUDGET_MS = 7_000L;
+    private static final long LX_STEP_BUDGET_MS = 5_000L;
+
+    /** 音源脚本整条降级链的总预算 */
+    private static final long LX_BUDGET_MS = 10_000L;
+
+    /** 给第三方聚合接口预留的时间，避免音源脚本把总预算吃光 */
+    private static final long FALLBACK_RESERVE_MS = 5_000L;
+
+    /** 第三方聚合接口单次请求的超时 */
+    private static final long REQUEST_TIMEOUT_MS = 8_000L;
 
     private final ObjectMapper mapper = new ObjectMapper();
 
@@ -79,9 +94,9 @@ public class PlayUrlResolver {
     @Resource
     private KugouPlayService kugouPlayService;
 
-    /** 多路并行解析用的线程池（LX 脚本 / 备用源同时跑，谁先可用用谁） */
-    private final ExecutorService racePool = Executors.newFixedThreadPool(16, r -> {
-        Thread t = new Thread(r, "play-race");
+    /** 平台原生音源的单级执行池（超时后立刻放弃该级，避免拖垮整次解析） */
+    private final ExecutorService stagePool = Executors.newFixedThreadPool(8, r -> {
+        Thread t = new Thread(r, "play-stage");
         t.setDaemon(true);
         return t;
     });
@@ -127,56 +142,38 @@ public class PlayUrlResolver {
                             String name, String singer, String album, Integer duration,
                             String kgCookie) {
         String src = (source == null || source.isBlank()) ? "wy" : source.trim().toLowerCase();
-        if ("kg".equals(src)) {
-            String hash = sourceId == null || sourceId.isBlank() ? id : sourceId;
-            if (hash == null || hash.isBlank()) {
-                return null;
-            }
-            String kgKey = "kg|" + hash + "|" + bridge;
-            CacheEntry kgCached = cache.get(kgKey);
-            if (kgCached != null && kgCached.expireAt() > System.currentTimeMillis()) {
-                return kgCached.info();
-            }
-            PlayInfo direct = kugouPlayService.resolve(hash, bridge, kgCookie);
-            if (direct == null) {
-                SongInfo song = new SongInfo(
-                        name == null ? "" : name,
-                        singer == null ? "" : singer,
-                        album == null ? "" : album,
-                        duration == null ? 0 : duration);
-                if (!song.name().isBlank()) {
-                    // 酷狗直连拿不到（付费/版权）时，交给现有音源脚本与备用聚合接口
-                    direct = resolveByScripts("kg", hash, bridge, song);
-                }
-            }
-            long kgTtl = direct == null ? TTL_FAIL
-                    : (direct.getSource() != null && direct.getSource().startsWith("lx:")
-                    ? TTL_LX : TTL_OK);
-            cache.put(kgKey, new CacheEntry(direct, System.currentTimeMillis() + kgTtl));
-            evictIfNeeded();
-            return direct;
-        }
-        if (id == null || id.isBlank()) {
+        if (!"kg".equals(src) && (id == null || id.isBlank())) {
             return null;
         }
-        String cacheKey = src + "|" + id + "|" + bridge;
+        // 平台原始 ID：酷狗是 32 位 hash，QQ 是 songmid；其它平台直接用 id
+        String platformId = firstNonBlank(sourceId, id);
+        if (platformId.isBlank()) {
+            return null;
+        }
+        // 缓存 key 与原实现保持一致：酷狗用 hash，其它平台用 id
+        String cacheKey = "kg".equals(src)
+                ? "kg|" + platformId + "|" + bridge
+                : src + "|" + id + "|" + bridge;
         CacheEntry cached = cache.get(cacheKey);
         if (cached != null && cached.expireAt() > System.currentTimeMillis()) {
             return cached.info();
         }
+        if (!"kg".equals(src) && (name == null || name.isBlank())) {
+            // 原生链路之外的兜底都依赖歌名，缺歌名时不缓存失败结果（保持原行为）
+            log.info("歌曲缺少歌名，无法解析 source={} id={}", src, id);
+            return null;
+        }
+
+        SongInfo song = new SongInfo(
+                name == null ? "" : name,
+                singer == null ? "" : singer,
+                album == null ? "" : album,
+                duration == null ? 0 : duration);
 
         PlayInfo info = null;
         try {
-            SongInfo song = new SongInfo(
-                    name == null ? "" : name,
-                    singer == null ? "" : singer,
-                    album == null ? "" : album,
-                    duration == null ? 0 : duration);
-            if (song.name().isBlank()) {
-                log.info("歌曲缺少歌名，无法解析 source={} id={}", src, id);
-                return null;
-            }
-            info = resolveByScripts(src, id, bridge, song);
+            info = resolveByChain(src, platformId,
+                    id == null || id.isBlank() ? platformId : id, bridge, song, kgCookie);
         } catch (Exception e) {
             log.warn("播放地址解析失败 source={} id={} bridge={} : {}", src, id, bridge,
                     e.getMessage());
@@ -200,60 +197,152 @@ public class PlayUrlResolver {
         return info;
     }
 
-    // ------------------------------------------------------------------ 音源脚本
+    // ------------------------------------------------------------ 串行解析链路
 
     /**
-     * 非酷狗歌曲的解析：音源脚本与备用聚合接口并行，谁先给出通过校验的地址就用谁。
+     * 严格串行：平台原生 → 洛雪音源脚本（按音质降级）→ 第三方聚合接口。
+     *
+     * <p>前一级拿到可用地址立刻返回，后续级别不再发起请求；每一级失败只记录原因。</p>
+     *
+     * @param platformId 平台原始 ID（酷狗 hash / QQ songmid）
+     * @param cacheId    用于回填 {@link PlayInfo#getMusicId()} 的平台歌曲 id
      */
-    private PlayInfo resolveByScripts(String source, String id, String bridge, SongInfo song) {
-        long deadline = System.currentTimeMillis() + PARALLEL_BUDGET_MS;
-        ExecutorCompletionService<PlayInfo> completion = new ExecutorCompletionService<>(racePool);
-        List<Future<PlayInfo>> futures = new ArrayList<>();
-        futures.add(completion.submit(() -> resolveFromLxScriptDowngrade(source, id, bridge, song)));
-        futures.add(completion.submit(() -> resolveFromFallback(song, id, bridge)));
+    private PlayInfo resolveByChain(String source, String platformId, String cacheId,
+                                    String bridge, SongInfo song, String kgCookie) {
+        long deadline = System.currentTimeMillis() + TOTAL_BUDGET_MS;
+        Long musicId = parseLong(cacheId);
 
+        // 1. 平台自带音源
+        PlayInfo info = resolveFromPlatform(source, platformId, bridge, kgCookie, deadline);
+        if (isUsable(info)) {
+            return info;
+        }
+
+        if (song.name().isBlank()) {
+            log.info("歌曲缺少歌名，跳过音源脚本与第三方兜底 source={} id={}", source, cacheId);
+            return null;
+        }
+
+        // 2. 洛雪音源脚本：按音质逐级降级，每级单独限时
         try {
-            for (int i = 0; i < futures.size(); i++) {
-                long remaining = deadline - System.currentTimeMillis();
-                if (remaining <= 0) {
-                    break;
-                }
-                Future<PlayInfo> done = completion.poll(remaining, TimeUnit.MILLISECONDS);
-                if (done == null) {
-                    break;
-                }
-                PlayInfo info = done.get();
-                if (info != null) {
-                    return info;
-                }
+            long lxDeadline = Math.min(deadline - FALLBACK_RESERVE_MS,
+                    System.currentTimeMillis() + LX_BUDGET_MS);
+            info = resolveFromLxScriptDowngrade(source, platformId, bridge, song, musicId,
+                    lxDeadline);
+            if (isUsable(info)) {
+                return info;
             }
+            log.info("音源脚本未命中，进入第三方兜底 source={} id={}", source, cacheId);
         } catch (Exception e) {
-            log.debug("并行解析异常 source={} id={} : {}", source, id, e.getMessage());
-        } finally {
-            futures.forEach(f -> {
-                if (!f.isDone()) {
-                    f.cancel(true);
-                }
-            });
+            log.warn("音源脚本解析异常 source={} id={} : {}", source, cacheId, e.getMessage());
+        }
+
+        // 3. 第三方聚合接口
+        try {
+            info = resolveFromFallback(song, cacheId, bridge, musicId, deadline);
+            if (isUsable(info)) {
+                return info;
+            }
+            log.info("第三方聚合接口未命中 source={} id={}", source, cacheId);
+        } catch (Exception e) {
+            log.warn("第三方聚合接口异常 source={} id={} : {}", source, cacheId, e.getMessage());
         }
         return null;
     }
 
     /**
+     * 平台自带音源。
+     *
+     * <ul>
+     *   <li>酷狗：{@link KugouPlayService}（v5/url → songinfo v2 → getSongInfo → trackercdn）；</li>
+     *   <li>QQ：原生 vkey 需要用户 Cookie，已在 PlayController 里先试过，这里直接走兜底；</li>
+     *   <li>网易云：没有可用的原生取地址接口（/api 只提供目录与歌词），跳过。</li>
+     * </ul>
+     */
+    private PlayInfo resolveFromPlatform(String source, String platformId, String bridge,
+                                         String kgCookie, long deadline) {
+        if (!"kg".equals(source)) {
+            return null;
+        }
+        long budget = remaining(deadline, NATIVE_BUDGET_MS);
+        PlayInfo info = runWithBudget("酷狗原生", platformId, budget,
+                () -> kugouPlayService.resolve(platformId, bridge, kgCookie));
+        if (!isUsable(info)) {
+            log.info("酷狗原生未取到地址 hash={} bridge={}，进入兜底", platformId, bridge);
+            return null;
+        }
+        return info;
+    }
+
+    /**
+     * 单级限时执行：超时直接放弃该级（底层请求仍在后台跑完，不影响返回）。
+     */
+    private PlayInfo runWithBudget(String stage, String id, long budgetMs,
+                                   Supplier<PlayInfo> task) {
+        if (budgetMs <= 0) {
+            log.info("{} 跳过（剩余时间不足） id={}", stage, id);
+            return null;
+        }
+        Future<PlayInfo> future = stagePool.submit(task::get);
+        try {
+            return future.get(budgetMs, TimeUnit.MILLISECONDS);
+        } catch (TimeoutException e) {
+            future.cancel(true);
+            log.warn("{} 超时 {}ms，放弃该级 id={}", stage, budgetMs, id);
+        } catch (InterruptedException e) {
+            future.cancel(true);
+            Thread.currentThread().interrupt();
+            log.warn("{} 被中断，放弃该级 id={}", stage, id);
+        } catch (Exception e) {
+            log.warn("{} 失败 id={} : {}", stage, id, e.getMessage());
+        }
+        return null;
+    }
+
+    private boolean isUsable(PlayInfo info) {
+        return info != null && info.getUrl() != null && !info.getUrl().isBlank();
+    }
+
+    /** 距离截止时间还剩多少毫秒，同时不超过单级上限 */
+    private long remaining(long deadline, long capMs) {
+        long left = deadline - System.currentTimeMillis();
+        if (left <= 0) {
+            return 0;
+        }
+        return capMs > 0 ? Math.min(left, capMs) : left;
+    }
+
+    private String firstNonBlank(String... values) {
+        for (String value : values) {
+            if (value != null && !value.isBlank()) {
+                return value;
+            }
+        }
+        return "";
+    }
+
+    // ------------------------------------------------------------------ 音源脚本
+
+    /**
      * 按音质逐级降级尝试音源脚本：拿不到无损就退 320k，再退 128k。
-     * 每一步单独限时，避免一直等到总超时。
+     * 每一步单独限时，且不超过整条降级链的截止时间。
      */
     private PlayInfo resolveFromLxScriptDowngrade(String source, String id, String bridge,
-                                                  SongInfo song) {
+                                                  SongInfo song, Long musicId, long deadline) {
         for (String candidateBridge : lxBridges(bridge)) {
-            PlayInfo info = resolveFromLxScript(source, id, candidateBridge, song,
-                    LX_STEP_BUDGET_MS);
+            long budget = remaining(deadline, LX_STEP_BUDGET_MS);
+            if (budget <= 0) {
+                log.info("音源脚本剩余时间不足，停止降级 id={} 已尝试至={}", id, candidateBridge);
+                break;
+            }
+            PlayInfo info = resolveFromLxScript(source, id, candidateBridge, song, musicId, budget);
             if (info != null) {
                 if (!candidateBridge.equals(bridge)) {
                     log.info("音源脚本已降级 id={} 期望={} 实际={}", id, bridge, candidateBridge);
                 }
                 return info;
             }
+            log.info("音源脚本 {} 未取到可用地址 id={}", candidateBridge, id);
         }
         return null;
     }
@@ -290,10 +379,11 @@ public class PlayUrlResolver {
      * 不塞空 hash，避免部分脚本把它当成有效值。</p>
      */
     private PlayInfo resolveFromLxScript(String source, String id, String bridge, SongInfo song,
-                                         long budgetMs) {
+                                         Long musicId, long budgetMs) {
         if (lxSourceService == null || !lxSourceService.isEnabled()) {
             return null;
         }
+        String lxSource = lxSource(source);
         String musicInfo;
         try {
             Map<String, Object> map = new LinkedHashMap<>();
@@ -315,9 +405,9 @@ public class PlayUrlResolver {
         }
 
         LxSourceService.Result result = budgetMs > 0
-                ? lxSourceService.resolve(source, lxQuality(bridge), musicInfo, song.duration(),
+                ? lxSourceService.resolve(lxSource, lxQuality(bridge), musicInfo, song.duration(),
                 budgetMs)
-                : lxSourceService.resolve(source, lxQuality(bridge), musicInfo, song.duration());
+                : lxSourceService.resolve(lxSource, lxQuality(bridge), musicInfo, song.duration());
         if (result == null) {
             return null;
         }
@@ -327,10 +417,20 @@ public class PlayUrlResolver {
         info.setFormat(guessFormat(result.url()));
         info.setBitrate(parseBitrate(bridge));
         info.setDuration(song.duration());
-        info.setMusicId(parseLong(id));
+        info.setMusicId(musicId == null ? parseLong(id) : musicId);
         info.setSource("lx:" + result.scriptId());
         info.setType(1);
         return info;
+    }
+
+    /**
+     * 客户端音源标识 -> 洛雪脚本音源标识（脚本里 QQ 音乐叫 tx）
+     */
+    private String lxSource(String source) {
+        if ("qq".equalsIgnoreCase(source) || "tx".equalsIgnoreCase(source)) {
+            return "tx";
+        }
+        return source;
     }
 
     /**
@@ -349,11 +449,18 @@ public class PlayUrlResolver {
 
     // --------------------------------------------------------------- 备用音源
 
-    private PlayInfo resolveFromFallback(SongInfo song, String id, String bridge) {
+    private PlayInfo resolveFromFallback(SongInfo song, String id, String bridge, Long musicId,
+                                         long deadline) {
+        long budget = remaining(deadline, 0);
+        if (budget <= 0) {
+            log.info("第三方聚合接口跳过（总预算已用完） id={}", id);
+            return null;
+        }
         String keyword = song.name() + (song.artist().isEmpty() ? "" : " " + song.artist());
         String searchUrl = FALLBACK_API + "?types=search&source=netease&name=" + encode(keyword)
                 + "&count=15&pages=1";
-        JsonNode list = getJson(searchUrl, Map.of("User-Agent", USER_AGENT));
+        JsonNode list = getJson(searchUrl, Map.of("User-Agent", USER_AGENT),
+                remaining(deadline, REQUEST_TIMEOUT_MS));
         if (list == null || !list.isArray() || list.isEmpty()) {
             log.info("备用音源搜索无结果 keyword={}", keyword);
             return null;
@@ -369,7 +476,7 @@ public class PlayUrlResolver {
             return null;
         }
 
-        PlayInfo hit = tryCandidates(ranked, song, id, bridge);
+        PlayInfo hit = tryCandidates(ranked, song, id, bridge, musicId, deadline);
         if (hit == null) {
             log.info("备用音源无合适匹配 keyword={} 候选数={}", keyword, list.size());
         }
@@ -380,7 +487,7 @@ public class PlayUrlResolver {
      * 依次尝试候选歌曲，逐个做时长校验后才返回。
      */
     private PlayInfo tryCandidates(List<JsonNode> candidates, SongInfo song, String id,
-                                   String bridge) {
+                                   String bridge, Long musicId, long deadline) {
         if (candidates.isEmpty()) {
             return null;
         }
@@ -394,9 +501,14 @@ public class PlayUrlResolver {
                 if (attempts >= MAX_FALLBACK_ATTEMPTS) {
                     return null;
                 }
+                long budget = remaining(deadline, REQUEST_TIMEOUT_MS);
+                if (budget <= 0) {
+                    log.info("第三方聚合接口预算用完，停止尝试 id={}", id);
+                    return null;
+                }
                 attempts++;
                 String url = FALLBACK_API + "?types=url&source=netease&id=" + cid + "&br=" + br;
-                JsonNode node = getJson(url, Map.of("User-Agent", USER_AGENT));
+                JsonNode node = getJson(url, Map.of("User-Agent", USER_AGENT), budget);
                 if (node == null) {
                     continue;
                 }
@@ -415,7 +527,7 @@ public class PlayUrlResolver {
                 info.setFormat(guessFormat(audio));
                 info.setBitrate(br);
                 info.setDuration(song.duration());
-                info.setMusicId(parseLong(id));
+                info.setMusicId(musicId == null ? parseLong(id) : musicId);
                 info.setSource("netease");
                 info.setType(1);
                 return info;
@@ -597,10 +709,11 @@ public class PlayUrlResolver {
         return sb.toString();
     }
 
-    private JsonNode getJson(String url, Map<String, String> headers) {
+    private JsonNode getJson(String url, Map<String, String> headers, long budgetMs) {
+        int timeout = (int) Math.max(1, Math.min(budgetMs, REQUEST_TIMEOUT_MS * 4));
         try (cn.hutool.http.HttpResponse response = cn.hutool.http.HttpRequest.get(url)
                 .addHeaders(headers)
-                .timeout(8000)
+                .timeout(timeout)
                 .execute()) {
             if (!response.isOk()) {
                 log.debug("请求失败 {} status={}", url, response.getStatus());

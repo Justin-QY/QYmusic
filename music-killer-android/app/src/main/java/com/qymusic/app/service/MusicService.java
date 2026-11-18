@@ -66,6 +66,7 @@ import com.qymusic.app.model.MusicModel;
 import com.qymusic.app.model.PlayInfo;
 import com.qymusic.app.ui.activity.MainActivity;
 import com.qymusic.app.utils.PlayUtilsKt;
+import com.qymusic.app.utils.lyric.SuperIslandLyrics;
 import com.qymusic.app.utils.converter.JavaSerializationConverter;
 
 /**
@@ -134,8 +135,10 @@ public class MusicService extends MediaSessionService implements Player.Listener
         initEXOPlayer();
 
         musicBroadcastReceiver = new MusicBroadcastReceiver();
-        ContextCompat.registerReceiver(this, musicBroadcastReceiver,
-                new IntentFilter("com.qymusic.app.favorite"), ContextCompat.RECEIVER_NOT_EXPORTED);
+        IntentFilter filter = new IntentFilter(IntentActions.FAVORITE);
+        filter.addAction(IntentActions.SUPER_ISLAND_SETTING);
+        ContextCompat.registerReceiver(this, musicBroadcastReceiver, filter,
+                ContextCompat.RECEIVER_NOT_EXPORTED);
     }
 
     @Nullable
@@ -205,6 +208,9 @@ public class MusicService extends MediaSessionService implements Player.Listener
 
         // 设置自定义布局（通知栏按钮）
         setCustomLayout();
+
+        // 澎湃 OS 超级岛歌词（开关关闭时内部直接 no-op）
+        SuperIslandLyrics.refresh(this, mExoPlayer);
 
         mExoPlayer.removeAnalyticsListener(mEventLogger);
         mExoPlayer.addAnalyticsListener(mEventLogger);
@@ -328,6 +334,7 @@ public class MusicService extends MediaSessionService implements Player.Listener
     @Override
     public void onDestroy() {
         super.onDestroy();
+        SuperIslandLyrics.detach();
         destroyPlayer();
         unregisterReceiver(musicBroadcastReceiver);
     }
@@ -533,6 +540,10 @@ public class MusicService extends MediaSessionService implements Player.Listener
                         isFavorite = favorite;
                         setCustomLayout();
                     }
+                    break;
+                case IntentActions.SUPER_ISLAND_SETTING:
+                    // 歌词设置页切换了超级岛开关，立即接入或退出，不用等下次播放
+                    SuperIslandLyrics.refresh(MusicService.this, mExoPlayer);
                     break;
             }
         }

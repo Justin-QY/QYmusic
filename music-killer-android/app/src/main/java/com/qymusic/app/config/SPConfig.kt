@@ -102,6 +102,25 @@ object SPConfig {
   }
 
   /**
+   * 底部导航排序（CSV，默认 home,cloud）。
+   * 未保存过、内容损坏或缺少模块时用 fallback 补齐，保证不丢模块。
+   */
+  const val NAV_ORDER = "nav_order"
+
+  fun navOrder(fallback: List<String>): List<String> {
+    val raw = NAV_ORDER.getRequired(fallback.joinToString(","))
+    val saved = raw.split(',')
+      .map { it.trim() }
+      .filter { it in fallback }
+      .distinct()
+    return saved + fallback.filter { it !in saved }
+  }
+
+  fun setNavOrder(order: List<String>) {
+    NAV_ORDER put order.filter { it.isNotBlank() }.distinct().joinToString(",")
+  }
+
+  /**
    * 第三方音源（默认关闭）
    */
   const val THIRD_PARTY_ENABLED = "third_party_enabled"
@@ -137,7 +156,7 @@ object SPConfig {
   }
 
   /**
-   * 歌词显示翻译
+   * 歌词显示翻译（旧版开关，key 保持不变）
    */
   const val SHOW_TRANSLATION = "show_translation"
 
@@ -145,6 +164,64 @@ object SPConfig {
 
   fun setShowTranslation(enabled: Boolean) {
     SHOW_TRANSLATION put enabled
+  }
+
+  // ------------------------------------------------------------------ 歌词设置
+
+  /**
+   * 歌词字号（sp）。
+   * 预设档位：小 16 / 标准 20 / 大 24 / 特大 28，写入时统一夹在 12–28 之间，
+   * 老用户没有这个 key 时回到标准档，表现与旧版一致。
+   */
+  const val LYRIC_FONT_SIZE = "lyric_font_size"
+
+  const val LYRIC_FONT_SIZE_SMALL = 16
+  const val LYRIC_FONT_SIZE_NORMAL = 20
+  const val LYRIC_FONT_SIZE_LARGE = 24
+  const val LYRIC_FONT_SIZE_XLARGE = 28
+
+  const val LYRIC_FONT_SIZE_MIN = 12
+  const val LYRIC_FONT_SIZE_MAX = 28
+
+  /** 歌词设置页展示顺序 */
+  val LYRIC_FONT_SIZE_PRESETS = listOf(
+    LYRIC_FONT_SIZE_SMALL,
+    LYRIC_FONT_SIZE_NORMAL,
+    LYRIC_FONT_SIZE_LARGE,
+    LYRIC_FONT_SIZE_XLARGE,
+  )
+
+  fun lyricFontSize(): Int =
+    LYRIC_FONT_SIZE.getRequired(LYRIC_FONT_SIZE_NORMAL)
+      .coerceIn(LYRIC_FONT_SIZE_MIN, LYRIC_FONT_SIZE_MAX)
+
+  fun setLyricFontSize(sizeSp: Int) {
+    LYRIC_FONT_SIZE put sizeSp.coerceIn(LYRIC_FONT_SIZE_MIN, LYRIC_FONT_SIZE_MAX)
+  }
+
+  /**
+   * 歌词页翻译开关。
+   * 与旧版「显示歌曲翻译」共用同一个 key，老用户设置不会丢，
+   * 设置页与歌词设置页读写的是同一份数据，两个入口天然同步。
+   */
+  const val LYRIC_TRANSLATION = SHOW_TRANSLATION
+
+  fun isLyricTranslationEnabled(): Boolean = SHOW_TRANSLATION.getRequired(false)
+
+  fun setLyricTranslationEnabled(enabled: Boolean) {
+    SHOW_TRANSLATION put enabled
+  }
+
+  /**
+   * 澎湃 OS（HyperOS）超级岛歌词开关，默认关闭。
+   * 关闭时不做任何额外通知，保持旧版行为。
+   */
+  const val LYRIC_SUPER_ISLAND = "lyric_super_island"
+
+  fun isLyricSuperIslandEnabled(): Boolean = LYRIC_SUPER_ISLAND.getRequired(false)
+
+  fun setLyricSuperIslandEnabled(enabled: Boolean) {
+    LYRIC_SUPER_ISLAND put enabled
   }
 
   /**
@@ -156,6 +233,44 @@ object SPConfig {
 
   fun setThemeMode(mode: Int) {
     THEME_MODE put mode
+  }
+
+  // ------------------------------------------------------------------ 通用设置
+
+  /**
+   * 系统语言：system 跟随系统 / zh 简体中文 / en English。
+   * 项目暂时没有独立的英文资源，英文选项先只写入配置，
+   * 由 AppCompat 的 per-app language 机制决定实际生效范围。
+   */
+  const val APP_LANGUAGE = "app_language"
+
+  const val LANGUAGE_SYSTEM = "system"
+  const val LANGUAGE_ZH = "zh"
+  const val LANGUAGE_EN = "en"
+
+  fun appLanguage(): String {
+    val language = APP_LANGUAGE.getRequired(LANGUAGE_SYSTEM)
+    return if (language in SUPPORTED_LANGUAGES) language else LANGUAGE_SYSTEM
+  }
+
+  fun setAppLanguage(language: String) {
+    APP_LANGUAGE put if (language in SUPPORTED_LANGUAGES) language else LANGUAGE_SYSTEM
+  }
+
+  val SUPPORTED_LANGUAGES = listOf(LANGUAGE_SYSTEM, LANGUAGE_ZH, LANGUAGE_EN)
+
+  /**
+   * 默认启动页：保存 NavModules 的稳定 key（home / cloud），默认首页。
+   * 实际跳转时由 NavModules.startPage() 过滤被隐藏的模块。
+   */
+  const val START_PAGE = "start_page"
+
+  const val START_PAGE_DEFAULT = "home"
+
+  fun startPageKey(): String = START_PAGE.getRequired(START_PAGE_DEFAULT)
+
+  fun setStartPageKey(key: String) {
+    START_PAGE put key
   }
 
   // ------------------------------------------------------------------ 网易云账号
@@ -217,6 +332,9 @@ object SPConfig {
   /** 云端平台开关：逗号分隔，默认三个全开 */
   const val CLOUD_PLATFORMS = "cloud_platforms"
 
+  /** 云端平台排序：逗号分隔的 key，默认 netease,qq,kugou */
+  const val CLOUD_PLATFORM_ORDER = "cloud_platform_order"
+
   const val CLOUD_NETEASE = "netease"
   const val CLOUD_QQ = "qq"
   const val CLOUD_KUGOU = "kugou"
@@ -225,7 +343,41 @@ object SPConfig {
   val ALL_CLOUD_PLATFORMS = listOf(CLOUD_NETEASE, CLOUD_QQ, CLOUD_KUGOU)
 
   /**
-   * 已启用的云端平台（至少一个）。
+   * 已保存的平台顺序（始终包含全部平台，缺少的按默认顺序补齐）。
+   * 每次读取都补齐，避免旧版本或异常写入导致某个平台从界面消失。
+   */
+  fun cloudPlatformOrder(): List<String> {
+    val raw = CLOUD_PLATFORM_ORDER.getRequired(ALL_CLOUD_PLATFORMS.joinToString(","))
+    val saved = raw.split(',')
+      .map { it.trim() }
+      .filter { it in ALL_CLOUD_PLATFORMS }
+      .distinct()
+    return saved + ALL_CLOUD_PLATFORMS.filter { it !in saved }
+  }
+
+  fun setCloudPlatformOrder(order: List<String>) {
+    val keys = order.filter { it in ALL_CLOUD_PLATFORMS }.distinct()
+    val full = keys + ALL_CLOUD_PLATFORMS.filter { it !in keys }
+    CLOUD_PLATFORM_ORDER put full.joinToString(",")
+  }
+
+  /**
+   * 按「已启用平台的新顺序」重排：未启用平台保持原有相对位置。
+   * 传入的 key 与当前启用集合不一致时直接忽略，避免写坏配置。
+   */
+  fun applyCloudPlatformOrder(enabledOrder: List<String>) {
+    val newOrder = enabledOrder.filter { it in ALL_CLOUD_PLATFORMS }.distinct()
+    val full = cloudPlatformOrder()
+    if (newOrder.isEmpty() || newOrder.toSet() != enabledCloudPlatforms()) {
+      return
+    }
+    var index = 0
+    val merged = full.map { key -> if (key in newOrder) newOrder[index++] else key }
+    setCloudPlatformOrder(merged)
+  }
+
+  /**
+   * 已启用的云端平台（至少一个），按保存的平台顺序返回。
    * 存储内容损坏或全部关闭时回落到三个平台全开，避免云端页变成空白。
    */
   fun enabledCloudPlatforms(): Set<String> {
@@ -237,8 +389,8 @@ object SPConfig {
     if (enabled.isEmpty()) {
       return ALL_CLOUD_PLATFORMS.toSet()
     }
-    // 按固定顺序返回，保证「第一个启用平台」稳定
-    return ALL_CLOUD_PLATFORMS.filter { it in enabled }.toCollection(LinkedHashSet())
+    // 按保存顺序返回，保证「第一个启用平台」与云端页芯片顺序一致
+    return cloudPlatformOrder().filter { it in enabled }.toCollection(LinkedHashSet())
   }
 
   /**

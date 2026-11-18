@@ -4,6 +4,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.annotation.Resource;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -15,6 +16,7 @@ import com.qymusic.service.PlayUrlResolver;
 /**
  * 播放相关
  */
+@Slf4j
 @RestController
 @RequestMapping("/play")
 @Tag(name = "播放")
@@ -44,19 +46,32 @@ public class PlayController {
             if (sourceId == null || sourceId.isBlank()) {
                 return Result.error("QQ 音乐播放需先登录 QQ 音乐");
             }
-            String url = qqMusicClient.vkey(sourceId, qqCookie, bridge);
-            if (url == null || url.isBlank()) {
+            // 1. 平台自带音源：QQ 原生 vkey（需要登录 Cookie）
+            String url = "";
+            try {
+                url = qqMusicClient.vkey(sourceId, qqCookie, bridge);
+            } catch (Exception e) {
+                log.warn("QQ 原生 vkey 解析异常 songmid={} : {}", sourceId, e.getMessage());
+            }
+            if (url != null && !url.isBlank()) {
+                PlayInfo qqInfo = new PlayInfo()
+                        .setUrl(url)
+                        .setSource("qq")
+                        .setBitrate(bridge != null && bridge.contains("flac") ? 999 : 320);
+                try {
+                    qqInfo.setMusicId(Long.parseLong(id));
+                } catch (Exception ignored) {
+                }
+                return Result.success(qqInfo);
+            }
+            // 2. vkey 为空（未登录 / 付费 / 版权）：进入洛雪音源脚本 → 第三方聚合的串行兜底
+            log.info("QQ 原生 vkey 未取到地址 songmid={}，进入兜底链路", sourceId);
+            PlayInfo fallback = playUrlResolver.resolve(id, bridge, "qq", sourceId, name, singer,
+                    album, duration, null);
+            if (fallback == null || fallback.getUrl() == null || fallback.getUrl().isBlank()) {
                 return Result.error("QQ 音乐播放需先登录 QQ 音乐（付费/版权歌曲）");
             }
-            PlayInfo qqInfo = new PlayInfo()
-                    .setUrl(url)
-                    .setSource("qq")
-                    .setBitrate(bridge != null && bridge.contains("flac") ? 999 : 320);
-            try {
-                qqInfo.setMusicId(Long.parseLong(id));
-            } catch (Exception ignored) {
-            }
-            return Result.success(qqInfo);
+            return Result.success(fallback);
         }
         String kgCookieValue = kgCookie == null || kgCookie.isBlank() ? cookie : kgCookie;
         PlayInfo info = playUrlResolver.resolve(id, bridge, source, sourceId, name, singer, album,

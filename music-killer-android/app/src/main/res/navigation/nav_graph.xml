@@ -199,7 +199,77 @@
             app:popEnterAnim="@anim/slide_in_left"
             app:popExitAnim="@anim/slide_out_right" />
 
+        <action
+            android:id="@+id/action_setting_plugins"
+            app:destination="@id/moduleManagerFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+
+        <action
+            android:id="@+id/action_setting_nav"
+            app:destination="@id/navManagerFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+
+        <action
+            android:id="@+id/action_setting_storage"
+            app:destination="@id/storageManagerFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+
+        <action
+            android:id="@+id/action_setting_lyrics"
+            app:destination="@id/lyricsSettingsFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+
+        <action
+            android:id="@+id/action_setting_general"
+            app:destination="@id/generalSettingsFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+
     </fragment>
+
+    <fragment
+        android:id="@+id/generalSettingsFragment"
+        android:name="com.qymusic.app.ui.fragment.setting.GeneralSettingsFragment"
+        android:label="通用设置"
+        tools:layout="@layout/fragment_general_settings" />
+
+    <fragment
+        android:id="@+id/lyricsSettingsFragment"
+        android:name="com.qymusic.app.ui.fragment.setting.LyricSettingsFragment"
+        android:label="歌词设置"
+        tools:layout="@layout/fragment_lyric_settings" />
+
+    <fragment
+        android:id="@+id/storageManagerFragment"
+        android:name="com.qymusic.app.ui.fragment.setting.StorageManagerFragment"
+        android:label="存储管理"
+        tools:layout="@layout/fragment_storage_manager" />
+
+    <fragment
+        android:id="@+id/moduleManagerFragment"
+        android:name="com.qymusic.app.ui.fragment.setting.ModuleManagerFragment"
+        android:label="插件管理"
+        tools:layout="@layout/fragment_module_manager" />
+
+    <fragment
+        android:id="@+id/navManagerFragment"
+        android:name="com.qymusic.app.ui.fragment.setting.NavManagerFragment"
+        android:label="底部导航管理"
+        tools:layout="@layout/fragment_nav_manager" />
 
     <fragment
         android:id="@+id/licenseFragment"

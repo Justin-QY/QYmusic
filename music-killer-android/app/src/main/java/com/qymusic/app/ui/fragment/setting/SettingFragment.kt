@@ -10,7 +10,6 @@ import android.os.Looper
 import android.text.InputType
 import android.widget.EditText
 import android.widget.FrameLayout
-import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
@@ -30,6 +29,7 @@ import com.qymusic.app.config.SPConfig
 import com.qymusic.app.databinding.FragmentSettingBinding
 import com.qymusic.app.enums.MusicBridge
 import com.qymusic.app.model.LxScriptModel
+import com.qymusic.app.utils.AppStorage
 import com.qymusic.app.utils.AppUpdater
 import com.qymusic.app.utils.SleepTimer
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -75,8 +75,17 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
             findNavController().navigate(R.id.action_setting_source)
         }
         binding.btnClearCache.setOnClickListener { clearCache() }
+        binding.itemStorageManager.setOnClickListener {
+            findNavController().navigate(R.id.action_setting_storage)
+        }
 
         binding.itemSleepTimer.setOnClickListener { showSleepTimerDialog() }
+        binding.itemLyricSettings.setOnClickListener {
+            findNavController().navigate(R.id.action_setting_lyrics)
+        }
+        binding.itemGeneralSettings.setOnClickListener {
+            findNavController().navigate(R.id.action_setting_general)
+        }
         binding.itemLicense.setOnClickListener {
             findNavController().navigate(R.id.action_setting_license)
         }
@@ -89,46 +98,14 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         binding.itemVersion.setOnClickListener { copyVersion() }
 
         initCatalogToggle()
-        initCloudPlatforms()
-        binding.itemKugouCheckin.setOnClickListener { checkKugouVip() }
-        initThemeToggle()
         initSwitches()
-        initNavToggles()
-    }
 
-    /**
-     * 底部导航开关：模块来自 NavModules 注册表，未来新增模块自动出现
-     */
-    private fun initNavToggles() {
-        val container = binding.llNavModules
-        container.removeAllViews()
-        val density = resources.displayMetrics.density
-        com.qymusic.app.config.NavModules.ALL.forEach { module ->
-            val switch = com.google.android.material.materialswitch.MaterialSwitch(requireContext()).apply {
-                text = module.title
-                isChecked = SPConfig.isNavVisible(module.key)
-                setPadding(0, (6 * density).toInt(), 0, (6 * density).toInt())
-            }
-            // 回滚开关时会再次触发监听，用这个标记避免误存配置 / 重建界面
-            var reverting = false
-            switch.setOnCheckedChangeListener { _, checked ->
-                if (reverting) {
-                    return@setOnCheckedChangeListener
-                }
-                val visibleCount = com.qymusic.app.config.NavModules.ALL.count {
-                    SPConfig.isNavVisible(it.key)
-                }
-                if (!checked && visibleCount <= 1) {
-                    reverting = true
-                    switch.isChecked = true
-                    reverting = false
-                    toast("至少保留一个导航栏")
-                    return@setOnCheckedChangeListener
-                }
-                SPConfig.setNavVisible(module.key, checked)
-                requireActivity().recreate()
-            }
-            container.addView(switch)
+        // 插件与底栏分别进入独立页面，避免两处重复配置
+        binding.itemPluginManager.setOnClickListener {
+            findNavController().navigate(R.id.action_setting_plugins)
+        }
+        binding.itemNavManager.setOnClickListener {
+            findNavController().navigate(R.id.action_setting_nav)
         }
     }
 
@@ -139,14 +116,11 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         super.onResume()
         refreshSummary()
         refreshCacheSize()
+        refreshStorageSummary()
         countScripts()
         updateSleepTimerState()
         uiHandler.removeCallbacks(sleepTimerTicker)
         uiHandler.post(sleepTimerTicker)
-        // 从云端平台设置返回时同步开关状态
-        binding.switchCloudNetease.isChecked = SPConfig.isCloudPlatformEnabled(SPConfig.CLOUD_NETEASE)
-        binding.switchCloudQq.isChecked = SPConfig.isCloudPlatformEnabled(SPConfig.CLOUD_QQ)
-        binding.switchCloudKugou.isChecked = SPConfig.isCloudPlatformEnabled(SPConfig.CLOUD_KUGOU)
     }
 
     override fun onPause() {
@@ -184,14 +158,33 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
 
         binding.switchDataSaver.isChecked = SPConfig.isDataSaver()
         binding.switchTranslation.isChecked = SPConfig.isShowTranslation()
+        binding.tvLyricSettingsState.text = buildLyricSettingsSummary()
         binding.tvUpdateState.text = "当前 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
         binding.tvContactEmail.text = EMAIL
 
-        binding.tvKugouCheckinState.text = if (SPConfig.isKugouLoggedIn()) {
-            "已登录酷狗，点击签到领取 VIP"
-        } else {
-            "先在「云端」登录酷狗概念版账号"
+        // 两个入口的摘要：启用平台数 / 底栏模块数
+        binding.tvPluginManagerState.text =
+            "${SPConfig.enabledCloudPlatforms().size} 个平台已启用，点击管理"
+        binding.tvNavManagerState.text =
+            "${com.qymusic.app.config.NavModules.visible().size} 个模块显示在底栏，点击管理"
+
+        // 通用设置入口摘要：语言 · 主题 · 默认启动页
+        binding.tvGeneralSettingsState.text = GeneralSettingsFragment.summary()
+    }
+
+    /** 歌词设置入口摘要：字号 + 翻译 + 超级岛，一眼看出当前配置 */
+    private fun buildLyricSettingsSummary(): String {
+        val size = SPConfig.lyricFontSize()
+        val sizeLabel = when (size) {
+            SPConfig.LYRIC_FONT_SIZE_SMALL -> "小"
+            SPConfig.LYRIC_FONT_SIZE_NORMAL -> "标准"
+            SPConfig.LYRIC_FONT_SIZE_LARGE -> "大"
+            SPConfig.LYRIC_FONT_SIZE_XLARGE -> "特大"
+            else -> "自定义"
         }
+        val translation = if (SPConfig.isLyricTranslationEnabled()) "翻译开" else "翻译关"
+        val island = if (SPConfig.isLyricSuperIslandEnabled()) "超级岛开" else "超级岛关"
+        return "字号$sizeLabel · $translation · $island"
     }
 
     private fun countScripts() {
@@ -272,171 +265,6 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
                 requireActivity().recreate()
             } catch (ignored: Exception) {
             }
-        }
-    }
-
-    // ------------------------------------------------------------------ 酷狗签到领 VIP
-
-    /**
-     * 先查 /kg/vip/status，再弹确认框；确认后调用 /kg/vip/checkin。
-     * 服务端返回结构可能随酷狗侧调整，这里只做宽松解析，未知字段统一兜底展示。
-     */
-    private fun checkKugouVip() {
-        val cookie = SPConfig.kugouCookie()
-        if (cookie.isBlank()) {
-            showVipDialog("未登录", "请先在「云端」登录酷狗概念版账号，再回来签到领取 VIP。")
-            return
-        }
-        viewLifecycleOwner.lifecycleScope.launch {
-            try {
-                val raw = Get<String>(Api.KUGOU_VIP_STATUS) {
-                    addQuery("cookie", cookie)
-                }.await().orEmpty()
-                val error = vipError(raw)
-                if (error != null) {
-                    showVipDialog("查询失败", error)
-                    return@launch
-                }
-                MaterialAlertDialogBuilder(requireContext())
-                    .setTitle("酷狗签到领 VIP")
-                    .setMessage(vipSummary(raw).ifBlank { "点击「立即签到」领取今日 VIP 权益。" })
-                    .setNegativeButton("取消", null)
-                    .setPositiveButton("立即签到") { _, _ -> submitKugouCheckin(cookie) }
-                    .show()
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                showVipDialog("查询失败", "Cookie 已失效或未登录，请到「云端」重新登录酷狗。")
-            }
-        }
-    }
-
-    private fun submitKugouCheckin(cookie: String) {
-        viewLifecycleOwner.lifecycleScope.launch {
-            try {
-                val raw = Get<String>(Api.KUGOU_VIP_CHECKIN) {
-                    addQuery("cookie", cookie)
-                }.await().orEmpty()
-                val error = vipError(raw)
-                if (error != null) {
-                    showVipDialog("签到失败", error)
-                    return@launch
-                }
-                showVipDialog(
-                    "签到成功",
-                    vipSummary(raw).ifBlank { "今日签到完成，VIP 权益已到账。" }
-                )
-            } catch (e: kotlinx.coroutines.CancellationException) {
-                throw e
-            } catch (e: Exception) {
-                showVipDialog("签到失败", "Cookie 已失效或未登录，请到「云端」重新登录酷狗。")
-            }
-        }
-    }
-
-    private fun showVipDialog(title: String, message: String) {
-        if (!isAdded) {
-            return
-        }
-        MaterialAlertDialogBuilder(requireContext())
-            .setTitle(title)
-            .setMessage(message.ifBlank { "暂无数据" })
-            .setPositiveButton("知道了", null)
-            .show()
-    }
-
-    /** 服务端 code 非成功时返回提示文案，成功（或没有 code 字段）返回 null */
-    private fun vipError(raw: String): String? {
-        val json = runCatching { org.json.JSONObject(raw.trim()) }.getOrNull() ?: return null
-        if (!json.has("code")) {
-            return null
-        }
-        val code = json.optInt("code", 0)
-        if (code == 200 || code == 0) {
-            return null
-        }
-        val message = json.optString("msg")
-            .ifBlank { json.optString("message") }
-            .ifBlank { "Cookie 已失效或未登录，请重新登录酷狗。" }
-        return message
-    }
-
-    /**
-     * 把 VIP 状态 / 签到结果整理成可读文本。
-     * 字段名不固定，逐个尝试常见命名，全部落空时直接展示原始数据。
-     */
-    private fun vipSummary(raw: String): String {
-        val text = raw.trim()
-        if (text.isEmpty()) {
-            return ""
-        }
-        val json = runCatching { org.json.JSONObject(text) }.getOrNull()
-            ?: return text.take(300)
-        val rawData = json.opt("data")
-        if (rawData is String && rawData.isNotBlank()) {
-            return rawData.take(300)
-        }
-        val data = rawData as? org.json.JSONObject ?: json
-
-        fun field(vararg keys: String): String? = keys.firstNotNullOfOrNull { key ->
-            if (!data.has(key)) {
-                return@firstNotNullOfOrNull null
-            }
-            val value = data.opt(key) ?: return@firstNotNullOfOrNull null
-            val valueText = if (value is Boolean) {
-                if (value) "是" else "否"
-            } else {
-                value.toString()
-            }
-            valueText.takeIf { it.isNotBlank() && it != "null" }
-        }
-
-        val lines = mutableListOf<String>()
-        field("nickname", "nickName", "userName", "nick", "user")?.let { lines += "账号：$it" }
-        field(
-            "isVip", "vip", "isMember", "vipStatus", "member", "vipType", "status", "state"
-        )?.let { lines += "会员状态：$it" }
-        field(
-            "vipExpire", "vipExpireTime", "expireTime", "vipEndTime", "endTime",
-            "expireAt", "vipEndDate", "expireDate"
-        )?.let { lines += "到期时间：$it" }
-        field(
-            "isSign", "todaySign", "todaySignIn", "signed", "signStatus",
-            "checkin", "checkinStatus", "isCheckin"
-        )?.let { lines += "签到状态：$it" }
-        field(
-            "reward", "rewardDesc", "rewardName", "vipDays", "days",
-            "giftName", "gift", "score", "points", "coin"
-        )?.let { lines += "本次奖励：$it" }
-        field("msg", "message", "tips", "desc")?.let { lines += it }
-
-        return if (lines.isEmpty()) data.toString().take(300) else lines.joinToString("\n")
-    }
-
-    // ------------------------------------------------------------------ 主题
-
-    private fun initThemeToggle() {
-        val checked = when (SPConfig.themeMode()) {
-            AppCompatDelegate.MODE_NIGHT_NO -> R.id.btn_theme_light
-            AppCompatDelegate.MODE_NIGHT_YES -> R.id.btn_theme_dark
-            else -> R.id.btn_theme_system
-        }
-        binding.toggleTheme.check(checked)
-
-        binding.toggleTheme.addOnButtonCheckedListener { _, checkedId, isChecked ->
-            if (!isChecked) {
-                return@addOnButtonCheckedListener
-            }
-            val mode = when (checkedId) {
-                R.id.btn_theme_light -> AppCompatDelegate.MODE_NIGHT_NO
-                R.id.btn_theme_dark -> AppCompatDelegate.MODE_NIGHT_YES
-                else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-            }
-            if (mode == SPConfig.themeMode()) {
-                return@addOnButtonCheckedListener
-            }
-            SPConfig.setThemeMode(mode)
-            AppCompatDelegate.setDefaultNightMode(mode)
         }
     }
 
@@ -563,32 +391,6 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         }
     }
 
-    // ------------------------------------------------------------------ 云端平台
-
-    /**
-     * 云端平台开关：至少保留一个，关闭最后一个时回滚开关。
-     * 云端页在 onResume 重新读取配置，返回后立即生效，无需重建 Activity。
-     */
-    private fun initCloudPlatforms() {
-        val platforms = listOf(
-            Triple(SPConfig.CLOUD_NETEASE, "网易云", binding.switchCloudNetease),
-            Triple(SPConfig.CLOUD_QQ, "QQ音乐", binding.switchCloudQq),
-            Triple(SPConfig.CLOUD_KUGOU, "酷狗", binding.switchCloudKugou),
-        )
-        platforms.forEach { (platform, _, switch) ->
-            switch.isChecked = SPConfig.isCloudPlatformEnabled(platform)
-            switch.setOnCheckedChangeListener { button, checked ->
-                if (checked == SPConfig.isCloudPlatformEnabled(platform)) {
-                    return@setOnCheckedChangeListener
-                }
-                if (!SPConfig.setCloudPlatformEnabled(platform, checked)) {
-                    button.isChecked = true
-                    toast("至少保留一个云端平台")
-                }
-            }
-        }
-    }
-
     // ------------------------------------------------------------------ 关于
 
     private fun showLongTextDialog(title: String, content: String) {
@@ -620,6 +422,17 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         viewLifecycleOwner.lifecycleScope.launch {
             val size = withContext(Dispatchers.IO) { calculateCacheSize() }
             binding.tvCacheSize.text = "已占用 ${formatSize(size)}，点击清除"
+        }
+    }
+
+    /** 存储管理入口右侧摘要：音频、图片、下载与临时文件的总占用 */
+    private fun refreshStorageSummary() {
+        val context = requireContext().applicationContext
+        viewLifecycleOwner.lifecycleScope.launch {
+            val total = withContext(Dispatchers.IO) { AppStorage.usage(context).total }
+            if (!isAdded) return@launch
+            binding.tvStorageSummary.text =
+                "共占用 ${AppStorage.formatSize(total)}，点击查看明细"
         }
     }
 

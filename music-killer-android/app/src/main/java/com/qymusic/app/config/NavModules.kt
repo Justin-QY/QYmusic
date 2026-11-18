@@ -24,7 +24,23 @@ object NavModules {
     Module(R.id.cloudFragment, "cloud", "云端", R.drawable.ic_cloud_24),
   )
 
-  fun visible(): List<Module> = ALL.filter { SPConfig.isNavVisible(it.key) }
+  /** 按保存的导航顺序排列的全部模块（未保存时默认 首页, 云端） */
+  fun ordered(): List<Module> {
+    val keys = SPConfig.navOrder(ALL.map { it.key })
+    return keys.mapNotNull { key -> ALL.firstOrNull { it.key == key } }
+  }
+
+  fun visible(): List<Module> = ordered().filter { SPConfig.isNavVisible(it.key) }
 
   fun find(id: Int): Module? = ALL.firstOrNull { it.id == id }
+
+  /**
+   * 默认启动页：按保存的 key 在「当前可见模块」里查找；
+   * 选中的模块被隐藏或 key 失效时回落到第一个可见模块，避免启动到不存在的页面。
+   */
+  fun startPage(): Module {
+    val candidates = visible().ifEmpty { ALL }
+    val key = SPConfig.startPageKey()
+    return candidates.firstOrNull { it.key == key } ?: candidates.first()
+  }
 }
