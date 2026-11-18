@@ -48,6 +48,10 @@ object AppUpdater {
     /** GitHub API 强制要求 User-Agent，缺失会直接返回 403 */
     private const val GITHUB_USER_AGENT = "QYMusic-Android"
 
+    /** GitHub 仓库里的备用安装包（发版时覆盖同一个文件） */
+    private const val GITHUB_DOWNLOAD_URL =
+        "https://github.com/Justin-QY/QYmusic/raw/master/apk/qy-music-latest.apk"
+
     /** 同一进程内避免启动检查和手动检查同时进行 */
     private var checking = false
 
@@ -304,6 +308,7 @@ object AppUpdater {
             .setMessage(message)
             .setCancelable(false)
             .setPositiveButton("立即更新", null)
+            .setNeutralButton("去 GitHub 下载") { _, _ -> openGitHubDownload(activity) }
             .create()
         // 强制更新：屏蔽返回键与点击外部，且不提供「稍后」
         dialog.setCancelable(false)
@@ -334,6 +339,7 @@ object AppUpdater {
             .setMessage("检查更新失败，请检查网络后重试。\n\n${detail.ifBlank { "网络异常" }}")
             .setCancelable(!startup)
             .setPositiveButton("重试", null)
+            .setNeutralButton("去 GitHub 下载") { _, _ -> openGitHubDownload(activity) }
         if (startup) {
             builder.setNegativeButton("退出应用") { _, _ -> exitApp(activity) }
         } else {
@@ -503,8 +509,14 @@ object AppUpdater {
         }
     }
 
-    private fun offerBrowserDownload(activity: AppCompatActivity, model: UpdateModel) {
-        MaterialAlertDialogBuilder(activity)
+    /** 打开 GitHub 上已打包好的 APK（发版时会把安装包覆盖提交到仓库） */
+    private fun openGitHubDownload(activity: AppCompatActivity) {
+        runCatching {
+            activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_DOWNLOAD_URL)))
+        }.onFailure { toast("没有找到可用的浏览器") }
+    }
+
+    private fun offerBrowserDownload(activity: AppCompatActivity, model: UpdateModel) {        MaterialAlertDialogBuilder(activity)
             .setTitle("无法自动安装")
             .setMessage("可以用浏览器下载安装包后手动安装。")
             .setNegativeButton("取消", null)
