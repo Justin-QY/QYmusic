@@ -92,6 +92,18 @@ data class MusicModel(
       else -> "网易云"
     }
 
+  /** 列表副标题：聚合搜索时带上来源平台与专辑，其它列表只显示歌手 */
+  val showArtist: String
+    get() {
+      if (!showSource) {
+        return artist
+      }
+      val parts = mutableListOf(sourceLabel)
+      if (artist.isNotBlank()) parts.add(artist)
+      if (album.isNotBlank()) parts.add(album)
+      return parts.joinToString(" · ")
+    }
+
   /** 是否显示来源标签（仅聚合搜索结果展示） */
   @Transient
   var showSource: Boolean = false
