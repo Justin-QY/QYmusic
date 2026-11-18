@@ -1,0 +1,49 @@
+{
+  "schemaVersion": 1,
+  "id": "kuwo",
+  "name": "酷我音乐",
+  "version": "0.1.0",
+  "apiVersion": "1.0",
+  "minHostVersion": "1.4.0",
+  "entry": "src/main.js",
+  "publisher": "MiaM1ku",
+  "capabilities": [
+    "searchSongs",
+    "searchAlbums",
+    "songDetails",
+    "playlistDetails",
+    "albumDetails",
+    "artistDetails",
+    "home",
+    "resolveStream",
+    "lyrics",
+    "account",
+    "login"
+  ],
+  "permissions": [
+    "network",
+    "clearTextNetwork",
+    "credentials"
+  ],
+  "networkDomains": [
+    "www.kuwo.cn",
+    "search.kuwo.cn",
+    "nplserver.kuwo.cn",
+    "mobi.kuwo.cn",
+    "m.kuwo.cn",
+    "wapi.kuwo.cn",
+    "newlyric.kuwo.cn",
+    "img1.kuwo.cn",
+    "img2.kuwo.cn",
+    "img4.kuwo.cn",
+    "bd-sycdn.kuwo.cn",
+    "antiserver.kuwo.cn",
+    "*.kuwo.cn"
+  ],
+  "networkMethods": [
+    "GET",
+    "POST",
+    "HEAD"
+  ],
+  "ui": []
+}
