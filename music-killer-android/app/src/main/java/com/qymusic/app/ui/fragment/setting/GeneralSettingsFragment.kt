@@ -54,6 +54,9 @@ class GeneralSettingsFragment :
     /** 设置页入口右侧摘要：主题 · 启动页 · 歌词字号 */
     fun summary(): String =
       "主题${themeLabel(SPConfig.themeMode())} · 启动${startPageLabel()} · 歌词${lyricSizeLabel()}"
+
+    /** 底部导航入口摘要：当前显示在底栏的模块数 */
+    fun navSummary(): String = "${NavModules.visible().size} 个模块显示在底栏，点击管理"
   }
 
   /** 同步 UI 时屏蔽控件回调，避免把默认值写回 SPConfig */
@@ -86,6 +89,9 @@ class GeneralSettingsFragment :
     binding.itemLyricSettings.setOnClickListener {
       findNavController().navigate(R.id.action_general_lyrics)
     }
+    binding.itemNavManager.setOnClickListener {
+      findNavController().navigate(R.id.action_general_nav)
+    }
   }
 
   override fun initData() {
@@ -112,6 +118,8 @@ class GeneralSettingsFragment :
     binding.tvStartPageValue.text = "当前：${startPageLabel()} · 点击切换"
 
     binding.tvLyricSettingsState.text = lyricSummary()
+
+    binding.tvNavManagerState.text = navSummary()
 
     syncing = false
   }

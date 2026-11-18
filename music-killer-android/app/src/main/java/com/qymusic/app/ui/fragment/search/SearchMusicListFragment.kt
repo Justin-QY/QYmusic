@@ -124,7 +124,10 @@ class SearchMusicListFragment :
     }
 
     if (searchSource !in enabled) {
+      // 当前首页曲库不在搜索平台里时，搜索页回落到第一个启用平台，
+      // 同时把首页曲库一起改过去，避免两处设置不一致。
       searchSource = enabled.first()
+      SPConfig.setCatalogSource(searchSource)
     }
     binding.toggleSource.isVisible =
       !SPConfig.isAggregateSearch() && enabled.size > 1

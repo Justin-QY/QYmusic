@@ -41,7 +41,7 @@
                         android:drawablePadding="2dp"
                         android:id="@+id/tv_favorite"
                         android:background="?attr/selectableItemBackgroundBorderless"
-                        android:text="我的收藏"
+                        android:text="本地收藏"
                         android:textSize="17sp"
                         android:layout_width="0dp"
                         android:layout_weight="1"

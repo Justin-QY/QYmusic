@@ -107,9 +107,25 @@ class SearchSourceFragment :
       renderPlatforms()
       return
     }
+
+    // 关闭的正好是首页曲库时，同步把首页曲库切到剩余平台里排在最前的那个，
+    // 避免「曲库选了 QQ、搜索平台只剩酷狗」这种两处配置打架的情况。
+    if (!enabled && SPConfig.catalogSource() == platform) {
+      val fallback = SPConfig.enabledSearchPlatforms().firstOrNull()
+      if (fallback != null && fallback != platform) {
+        SPConfig.setCatalogSource(fallback)
+        renderPlatforms()
+        toast("已关闭$name，首页曲库同步改为${labelOf(fallback)}")
+        return
+      }
+    }
+
     renderPlatforms()
     toast(if (enabled) "已启用$name" else "已关闭$name")
   }
+
+  private fun labelOf(platform: String): String =
+    PLATFORMS.firstOrNull { it.key == platform }?.name ?: platform
 
   private fun savePlatformOrder() {
     SPConfig.applySearchPlatformOrder(enabledAdapter.keys())

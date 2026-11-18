@@ -196,12 +196,14 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
             binding.tvKugouVipState.text = KUGOU_VIP_HINT
         }
 
-        styleChip(binding.chipNetease, platform == PlatformLoginActivity.PLATFORM_NETEASE)
-        styleChip(binding.chipQq, platform == PlatformLoginActivity.PLATFORM_QQ)
-        styleChip(binding.chipKuwo, platform == PlatformLoginActivity.PLATFORM_KUGOU)
+        styleChip(binding.chipNetease, PlatformLoginActivity.PLATFORM_NETEASE)
+        styleChip(binding.chipQq, PlatformLoginActivity.PLATFORM_QQ)
+        styleChip(binding.chipKuwo, PlatformLoginActivity.PLATFORM_KUGOU)
         binding.btnLogin.text = "登录" + platformName()
+        // 按钮底色跟随平台主题色，只留右侧箭头
+        binding.btnLogin.background = pillBackground(brandColor(platform))
         binding.btnLogin.setCompoundDrawablesRelativeWithIntrinsicBounds(
-            platformIcon(platform),
+            0,
             0,
             R.drawable.ic_chevron_right_white,
             0
@@ -265,11 +267,14 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         }
     }
 
-    /** 芯片配色：选中为蓝紫渐变胶囊 + 白字白图标，未选中为透明 + 灰色文字 */
-    private fun styleChip(view: android.widget.TextView, selected: Boolean) {
-        view.setBackgroundResource(
-            if (selected) R.drawable.bg_cloud_pill_selected else android.R.color.transparent
-        )
+    /** 芯片配色：选中为平台主题色胶囊 + 白字，未选中为透明 + 灰色文字 */
+    private fun styleChip(view: android.widget.TextView, source: String) {
+        val selected = platform == source
+        if (selected) {
+            view.background = pillBackground(brandColor(source))
+        } else {
+            view.setBackgroundColor(android.graphics.Color.TRANSPARENT)
+        }
         val attr = if (selected) {
             com.google.android.material.R.attr.colorOnPrimary
         } else {
@@ -277,21 +282,26 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         }
         val color = com.google.android.material.color.MaterialColors.getColor(view, attr)
         view.setTextColor(color)
-        // 平台小图标跟随文字颜色
-        val tint = android.content.res.ColorStateList.valueOf(color)
-        view.compoundDrawablesRelative.forEach { drawable -> drawable?.setTintList(tint) }
         view.setTypeface(
             null,
             if (selected) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL
         )
     }
 
-    /** 当前平台的图标：胶囊与登录按钮共用 */
-    private fun platformIcon(target: String): Int = when (target) {
-        PlatformLoginActivity.PLATFORM_QQ -> R.drawable.ic_plat_qq
-        PlatformLoginActivity.PLATFORM_KUGOU -> R.drawable.ic_plat_kugou
-        else -> R.drawable.ic_plat_netease
+    /** 平台主题色：网易云红、QQ 音乐绿、酷狗蓝 */
+    private fun brandColor(source: String): Int = when (source) {
+        PlatformLoginActivity.PLATFORM_QQ -> 0xFF31C27C.toInt()
+        PlatformLoginActivity.PLATFORM_KUGOU -> 0xFF00A0E9.toInt()
+        else -> 0xFFC20C0C.toInt()
     }
+
+    /** 胶囊背景：纯平台色 + 全圆角 */
+    private fun pillBackground(color: Int): android.graphics.drawable.GradientDrawable =
+        android.graphics.drawable.GradientDrawable().apply {
+            shape = android.graphics.drawable.GradientDrawable.RECTANGLE
+            cornerRadius = 999f * resources.displayMetrics.density
+            setColor(color)
+        }
 
     private fun loadData(force: Boolean = false) {
         val target = platform

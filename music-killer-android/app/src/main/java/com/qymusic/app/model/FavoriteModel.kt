@@ -7,7 +7,7 @@ import org.litepal.annotation.Column
 import org.litepal.crud.LitePalSupport
 
 /**
- * 我的收藏
+ * 本地收藏
  */
 data class FavoriteModel(
 
