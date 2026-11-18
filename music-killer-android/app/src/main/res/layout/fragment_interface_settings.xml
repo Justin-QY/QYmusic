@@ -15,7 +15,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:lineSpacingExtra="3dp"
-            android:text="首页曲库决定首页、排行榜、歌手、歌单和搜索默认用哪个曲库；曲库搜索决定搜索时可用哪些平台。"
+            android:text="首页曲库决定浏览内容；曲库搜索决定搜索时可用的平台。"
             android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
             android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -95,7 +95,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="10dp"
                     android:lineSpacingExtra="3dp"
-                    android:text="切换后首页、排行榜、歌手、歌单、搜索和歌词一并换源，不影响播放。"
+                    android:text="切换后首页、榜单、歌单、歌手与搜索一并换源，不影响播放。"
                     android:textAppearance="@style/TextAppearance.Material3.BodySmall"
                     android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -191,7 +191,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:lineSpacingExtra="4dp"
-            android:text="聚合搜索开启后，搜索页不再显示平台切换，直接合并所有启用平台的结果，每条结果标注来源。关闭当前首页曲库对应的平台时，首页曲库会自动切到剩余平台，避免两处设置不一致。"
+            android:text="聚合开启后搜索页不显示平台切换，结果直接合并并标注来源；关掉当前曲库平台时首页曲库会自动切换。"
             android:textAppearance="@style/TextAppearance.Material3.BodySmall"
             android:textColor="?attr/colorOnSurfaceVariant" />
 

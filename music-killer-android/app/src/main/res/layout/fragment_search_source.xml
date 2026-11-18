@@ -103,7 +103,7 @@
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
             android:lineSpacingExtra="4dp"
-            android:text="点击平台切换是否参与聚合搜索，长按可拖动调整结果顺序；至少保留一个平台。聚合关闭时，搜索页仍按单平台切换查询。"
+            android:text="点击切换是否参与聚合，长按可拖动排序，至少保留一个平台。"
             android:textAppearance="@style/TextAppearance.Material3.BodySmall"
             android:textColor="?attr/colorOnSurfaceVariant" />
 

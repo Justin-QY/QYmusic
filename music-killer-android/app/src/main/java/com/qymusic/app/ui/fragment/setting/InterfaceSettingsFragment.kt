@@ -23,11 +23,7 @@ class InterfaceSettingsFragment :
   companion object {
 
     /** 首页曲库名称：网易云 / QQ音乐 / 酷狗 */
-    fun catalogLabel(): String = when (SPConfig.catalogSource()) {
-      SPConfig.SOURCE_QQ -> "QQ音乐"
-      SPConfig.SOURCE_KUGOU -> "酷狗"
-      else -> "网易云"
-    }
+    fun catalogLabel(): String = SPConfig.platformLabel(SPConfig.catalogSource())
 
     /** 聚合搜索开关标签 */
     fun aggregateSearchLabel(): String =
@@ -53,7 +49,7 @@ class InterfaceSettingsFragment :
   override fun onResume() {
     super.onResume()
     updateCatalogButtons()
-    binding.tvCatalogHint.text = "切换后首页、排行榜、歌手、歌单、搜索和歌词一并换源，不影响播放。"
+    binding.tvCatalogHint.text = "切换后首页、榜单、歌单、歌手与搜索一并换源，不影响播放。"
     binding.tvSearchSourceState.text =
       "${aggregateSearchLabel()} · ${SPConfig.enabledSearchPlatforms().size} 个平台"
   }

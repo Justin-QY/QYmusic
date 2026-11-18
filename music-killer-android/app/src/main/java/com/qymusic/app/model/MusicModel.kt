@@ -86,11 +86,7 @@ data class MusicModel(
 
   /** 平台展示名：聚合搜索结果里标注来源 */
   val sourceLabel: String
-    get() = when (source) {
-      "qq" -> "QQ音乐"
-      "kg" -> "酷狗"
-      else -> "网易云"
-    }
+    get() = com.qymusic.app.config.SPConfig.platformLabel(source)
 
   /** 列表副标题：聚合搜索时带上来源平台与专辑，其它列表只显示歌手 */
   val showArtist: String

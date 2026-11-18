@@ -305,6 +305,13 @@ object SPConfig {
     CATALOG_SOURCE put source
   }
 
+  /** 曲库展示名，避免各处重复写映射：wy=网易云，qq=QQ音乐，kg=酷狗 */
+  fun platformLabel(source: String): String = when (source) {
+    SOURCE_QQ -> "QQ音乐"
+    SOURCE_KUGOU -> "酷狗"
+    else -> "网易云"
+  }
+
   // ------------------------------------------------------------------ 云端平台
 
   /** 云端平台开关：逗号分隔，默认三个全开 */

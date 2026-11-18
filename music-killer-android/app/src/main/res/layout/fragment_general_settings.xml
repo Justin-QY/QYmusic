@@ -15,7 +15,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:lineSpacingExtra="3dp"
-            android:text="主题、歌词与启动页集中在这里设置，修改后立即保存，下次启动继续生效。"
+            android:text="主题、歌词、导航与启动页设置，修改后立即生效。"
             android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
             android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -404,7 +404,7 @@
                 android:layout_marginStart="10dp"
                 android:layout_weight="1"
                 android:lineSpacingExtra="3dp"
-                android:text="主题切换后界面会自动重建；如果部分页面没有立即刷新，重启应用即可完全生效。默认启动页只影响从桌面正常启动，深链、通知和分享进入仍保持原有页面。有新版本时会先查服务器，服务器不可用时自动从 GitHub 下载，必须更新后才能继续使用。"
+                android:text="主题切换后界面会自动重建。默认启动页只影响从桌面启动；有新版本时会先查服务器，失败则从 GitHub 下载，必须更新后才能继续使用。"
                 android:textAppearance="@style/TextAppearance.Material3.BodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant" />
 

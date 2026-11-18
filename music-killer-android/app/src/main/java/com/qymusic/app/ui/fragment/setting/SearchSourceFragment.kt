@@ -26,9 +26,9 @@ class SearchSourceFragment :
 
   private companion object {
     val PLATFORMS = listOf(
-      PlatformInfo(SPConfig.SOURCE_NETEASE, "网易云音乐"),
-      PlatformInfo(SPConfig.SOURCE_QQ, "QQ音乐"),
-      PlatformInfo(SPConfig.SOURCE_KUGOU, "酷狗"),
+      PlatformInfo(SPConfig.SOURCE_NETEASE, SPConfig.platformLabel(SPConfig.SOURCE_NETEASE)),
+      PlatformInfo(SPConfig.SOURCE_QQ, SPConfig.platformLabel(SPConfig.SOURCE_QQ)),
+      PlatformInfo(SPConfig.SOURCE_KUGOU, SPConfig.platformLabel(SPConfig.SOURCE_KUGOU)),
     )
   }
 
