@@ -1,8 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<menu xmlns:android="http://schemas.android.com/apk/res/android">
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/search"
+        android:icon="@drawable/baseline_search_24"
+        android:title="搜索"
+        app:showAsAction="always" />
+
+    <item
+        android:id="@+id/play_queue"
+        android:icon="@drawable/baseline_queue_music_24"
+        android:title="播放列表"
+        app:showAsAction="always" />
+
     <item
         android:id="@+id/settings_cloud"
         android:icon="@drawable/baseline_settings_24"
         android:title="设置"
-        android:showAsAction="always" />
+        app:showAsAction="always" />
+
 </menu>

@@ -14,6 +14,7 @@
         android:paddingBottom="28dp">
 
         <LinearLayout
+            android:id="@+id/toggle_platform"
             android:layout_width="match_parent"
             android:layout_height="42dp"
             android:background="@drawable/bg_segment_container"
@@ -54,6 +55,55 @@
                 android:textColor="?attr/colorOnSurfaceVariant" />
 
         </LinearLayout>
+
+        <!-- 设置里关闭了全部云端平台时的兜底提示 -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/card_no_platform"
+            style="@style/Widget.Material3.CardView.Filled"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:visibility="gone"
+            app:cardBackgroundColor="@color/glass_card"
+            app:cardCornerRadius="24dp"
+            app:cardElevation="0dp"
+            app:contentPadding="20dp"
+            app:strokeColor="@color/glass_stroke"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="没有启用任何云端平台"
+                    android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:lineSpacingExtra="3dp"
+                    android:text="请到「设置 → 云端平台」至少打开一个平台，再回到这里登录。"
+                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/btn_go_setting"
+                    android:layout_width="wrap_content"
+                    android:layout_height="46dp"
+                    android:layout_marginTop="14dp"
+                    android:insetTop="0dp"
+                    android:insetBottom="0dp"
+                    android:text="去设置" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
 
         <!-- 未登录 -->
         <com.google.android.material.card.MaterialCardView

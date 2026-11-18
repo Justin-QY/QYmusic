@@ -1,7 +1,15 @@
 package com.qymusic.app.ui.fragment.setting
 
+import android.content.ClipData
+import android.content.ClipboardManager
+import android.content.Context
 import android.content.Intent
 import android.graphics.Color
+import android.os.Handler
+import android.os.Looper
+import android.text.InputType
+import android.widget.EditText
+import android.widget.FrameLayout
 import androidx.appcompat.app.AppCompatDelegate
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.net.toUri
@@ -23,6 +31,7 @@ import com.qymusic.app.databinding.FragmentSettingBinding
 import com.qymusic.app.enums.MusicBridge
 import com.qymusic.app.model.LxScriptModel
 import com.qymusic.app.utils.AppUpdater
+import com.qymusic.app.utils.SleepTimer
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import java.io.File
 
@@ -37,6 +46,16 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
     }
 
     private var countingScripts = false
+
+    private val uiHandler = Handler(Looper.getMainLooper())
+
+    /** 定时播放剩余时间每秒刷新一次 */
+    private val sleepTimerTicker = object : Runnable {
+        override fun run() {
+            updateSleepTimerState()
+            uiHandler.postDelayed(this, 1000L)
+        }
+    }
 
     override fun initView() {
         // 磨砂玻璃背景 + 透明 AppBar，让渐变透上来
@@ -57,7 +76,20 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         }
         binding.btnClearCache.setOnClickListener { clearCache() }
 
+        binding.itemSleepTimer.setOnClickListener { showSleepTimerDialog() }
+        binding.itemLicense.setOnClickListener {
+            findNavController().navigate(R.id.action_setting_license)
+        }
+        binding.itemTerms.setOnClickListener {
+            showLongTextDialog("用户协议", getString(R.string.terms_content))
+        }
+        binding.itemPrivacy.setOnClickListener {
+            showLongTextDialog("隐私政策", getString(R.string.privacy_content))
+        }
+        binding.itemVersion.setOnClickListener { copyVersion() }
+
         initCatalogToggle()
+        initCloudPlatforms()
         binding.itemKugouCheckin.setOnClickListener { checkKugouVip() }
         initThemeToggle()
         initSwitches()
@@ -108,12 +140,26 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         refreshSummary()
         refreshCacheSize()
         countScripts()
+        updateSleepTimerState()
+        uiHandler.removeCallbacks(sleepTimerTicker)
+        uiHandler.post(sleepTimerTicker)
+        // 从云端平台设置返回时同步开关状态
+        binding.switchCloudNetease.isChecked = SPConfig.isCloudPlatformEnabled(SPConfig.CLOUD_NETEASE)
+        binding.switchCloudQq.isChecked = SPConfig.isCloudPlatformEnabled(SPConfig.CLOUD_QQ)
+        binding.switchCloudKugou.isChecked = SPConfig.isCloudPlatformEnabled(SPConfig.CLOUD_KUGOU)
+    }
+
+    override fun onPause() {
+        uiHandler.removeCallbacks(sleepTimerTicker)
+        super.onPause()
     }
 
     // ------------------------------------------------------------------ 当前配置
 
     private fun refreshSummary() {
         binding.tvVersion.text = "版本 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
+        binding.tvAboutVersion.text =
+            "版本 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})，点击复制"
 
         binding.tvConfigCatalog.text = when (SPConfig.catalogSource()) {
             SPConfig.SOURCE_KUGOU -> "酷狗"
@@ -402,6 +448,169 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         }
         binding.switchTranslation.setOnCheckedChangeListener { _, checked ->
             SPConfig.setShowTranslation(checked)
+        }
+    }
+
+    // ------------------------------------------------------------------ 定时播放
+
+    /**
+     * 定时播放入口：
+     * - 未开启时弹预设（15/30/60/90 分钟）与自定义分钟数；
+     * - 已开启时显示剩余时间，可重新设置或取消。
+     */
+    private fun showSleepTimerDialog() {
+        if (!isAdded) {
+            return
+        }
+        if (SleepTimer.isActive()) {
+            MaterialAlertDialogBuilder(requireContext())
+                .setTitle("定时播放")
+                .setMessage("剩余 " + formatSleepRemaining(SleepTimer.remainingMs()) + " 后自动暂停播放。")
+                .setPositiveButton("重新设置") { _, _ -> showSleepTimerPresets() }
+                .setNeutralButton("取消定时") { _, _ ->
+                    SleepTimer.cancel()
+                    updateSleepTimerState()
+                    toast("已取消定时播放")
+                }
+                .setNegativeButton("关闭", null)
+                .show()
+            return
+        }
+        showSleepTimerPresets()
+    }
+
+    private fun showSleepTimerPresets() {
+        val presets = intArrayOf(15, 30, 60, 90)
+        val labels = arrayOf("15 分钟", "30 分钟", "60 分钟", "90 分钟", "自定义分钟数…")
+        var selected = 0
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("定时播放")
+            .setSingleChoiceItems(labels, selected) { _, which -> selected = which }
+            .setNegativeButton("取消", null)
+            .setPositiveButton("开始") { _, _ ->
+                if (selected < presets.size) {
+                    startSleepTimer(presets[selected])
+                } else {
+                    showCustomMinutesDialog()
+                }
+            }
+            .show()
+    }
+
+    private fun showCustomMinutesDialog() {
+        val density = resources.displayMetrics.density
+        val input = EditText(requireContext()).apply {
+            inputType = InputType.TYPE_CLASS_NUMBER
+            hint = "1 - 600 分钟"
+            setSingleLine()
+        }
+        val container = FrameLayout(requireContext()).apply {
+            val horizontal = (22 * density).toInt()
+            setPadding(horizontal, (8 * density).toInt(), horizontal, 0)
+            addView(
+                input,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                )
+            )
+        }
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("自定义分钟数")
+            .setView(container)
+            .setNegativeButton("取消", null)
+            .setPositiveButton("开始") { _, _ ->
+                val minutes = input.text.toString().trim().toIntOrNull()
+                if (minutes == null || minutes <= 0 || minutes > 600) {
+                    toast("请输入 1 - 600 之间的分钟数")
+                    return@setPositiveButton
+                }
+                startSleepTimer(minutes)
+            }
+            .show()
+    }
+
+    private fun startSleepTimer(minutes: Int) {
+        SleepTimer.start(minutes)
+        updateSleepTimerState()
+        toast("已开启定时播放：$minutes 分钟后暂停")
+    }
+
+    private fun updateSleepTimerState() {
+        if (!isAdded || !::baseContentBinding.isInitialized) {
+            return
+        }
+        val text = if (SleepTimer.isActive()) {
+            "剩余 " + formatSleepRemaining(SleepTimer.remainingMs()) + " 后暂停 · 点击取消"
+        } else {
+            "到点自动暂停播放"
+        }
+        if (binding.tvSleepTimerState.text.toString() != text) {
+            binding.tvSleepTimerState.text = text
+        }
+    }
+
+    /** 小于一小时显示 mm:ss，超过一小时显示 h:mm:ss */
+    private fun formatSleepRemaining(ms: Long): String {
+        val totalSeconds = (ms / 1000).coerceAtLeast(0L)
+        val hours = totalSeconds / 3600
+        val minutes = totalSeconds % 3600 / 60
+        val seconds = totalSeconds % 60
+        return if (hours > 0) {
+            String.format("%d:%02d:%02d", hours, minutes, seconds)
+        } else {
+            String.format("%02d:%02d", minutes, seconds)
+        }
+    }
+
+    // ------------------------------------------------------------------ 云端平台
+
+    /**
+     * 云端平台开关：至少保留一个，关闭最后一个时回滚开关。
+     * 云端页在 onResume 重新读取配置，返回后立即生效，无需重建 Activity。
+     */
+    private fun initCloudPlatforms() {
+        val platforms = listOf(
+            Triple(SPConfig.CLOUD_NETEASE, "网易云", binding.switchCloudNetease),
+            Triple(SPConfig.CLOUD_QQ, "QQ音乐", binding.switchCloudQq),
+            Triple(SPConfig.CLOUD_KUGOU, "酷狗", binding.switchCloudKugou),
+        )
+        platforms.forEach { (platform, _, switch) ->
+            switch.isChecked = SPConfig.isCloudPlatformEnabled(platform)
+            switch.setOnCheckedChangeListener { button, checked ->
+                if (checked == SPConfig.isCloudPlatformEnabled(platform)) {
+                    return@setOnCheckedChangeListener
+                }
+                if (!SPConfig.setCloudPlatformEnabled(platform, checked)) {
+                    button.isChecked = true
+                    toast("至少保留一个云端平台")
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------------ 关于
+
+    private fun showLongTextDialog(title: String, content: String) {
+        if (!isAdded) {
+            return
+        }
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(title)
+            .setMessage(content)
+            .setPositiveButton("关闭", null)
+            .show()
+    }
+
+    private fun copyVersion() {
+        val text = "QY MUSIC ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
+        try {
+            val manager =
+                requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
+            manager?.setPrimaryClip(ClipData.newPlainText("版本号", text))
+            toast("版本号已复制")
+        } catch (e: Exception) {
+            toast(text)
         }
     }
 

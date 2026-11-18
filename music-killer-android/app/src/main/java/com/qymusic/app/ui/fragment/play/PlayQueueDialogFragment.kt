@@ -138,7 +138,14 @@ class PlayQueueDialogFragment : EngineBottomSheetDialogFragment<FragmentPlayQueu
 
   override fun initView() {
     binding.btnClose.setOnClickListener {
-      findNavController().navigateUp()
+      // 既可能由导航图（dialog destination）打开，也可能由工具栏菜单直接 show() 打开，
+      // 后者不在 NavHost 里，findNavController() 会直接抛异常，这里做兜底 dismiss。
+      val nav = runCatching { findNavController() }.getOrNull()
+      if (nav?.currentDestination?.id == R.id.playQueueFragment) {
+        nav.navigateUp()
+      } else {
+        dismissAllowingStateLoss()
+      }
     }
 
     binding.btnExpand.setOnClickListener {

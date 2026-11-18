@@ -14,6 +14,7 @@ import com.qymusic.app.R
 import com.qymusic.app.base.BaseMusicAppbarFragment
 import com.qymusic.app.databinding.FragmentHomeBinding
 import com.qymusic.app.databinding.LayoutTabBinding
+import com.qymusic.app.ui.fragment.play.PlayQueueDialogFragment
 import com.qymusic.app.ui.fragment.artist.ArtistFragment
 import com.qymusic.app.ui.fragment.playlist.PlayListFragment
 import com.qymusic.app.ui.fragment.rank.RankFragment
@@ -62,10 +63,30 @@ class HomeFragment : BaseMusicAppbarFragment<FragmentHomeBinding>(R.layout.fragm
         navController.navigate(HomeFragmentDirections.actionSearch())
       }
 
+      R.id.play_queue -> {
+        showPlayQueue()
+      }
+
       R.id.setting -> {
         navController.navigate(HomeFragmentDirections.actionSetting())
       }
     }
     return true
+  }
+
+  /**
+   * 打开播放队列。队列弹窗是已有的 PlayQueueDialogFragment，这里只负责展示，
+   * 不重复实现一套队列页面。
+   */
+  private fun showPlayQueue() {
+    val fragmentManager = requireActivity().supportFragmentManager
+    if (fragmentManager.findFragmentByTag(PLAY_QUEUE_TAG) != null) {
+      return
+    }
+    PlayQueueDialogFragment().show(fragmentManager, PLAY_QUEUE_TAG)
+  }
+
+  private companion object {
+    const val PLAY_QUEUE_TAG = "play_queue_dialog"
   }
 }

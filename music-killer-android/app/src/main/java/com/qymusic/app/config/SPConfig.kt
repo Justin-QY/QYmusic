@@ -212,6 +212,58 @@ object SPConfig {
     CATALOG_SOURCE put source
   }
 
+  // ------------------------------------------------------------------ 云端平台
+
+  /** 云端平台开关：逗号分隔，默认三个全开 */
+  const val CLOUD_PLATFORMS = "cloud_platforms"
+
+  const val CLOUD_NETEASE = "netease"
+  const val CLOUD_QQ = "qq"
+  const val CLOUD_KUGOU = "kugou"
+
+  /** 云端平台的固定顺序，界面展示与兜底都按这个顺序 */
+  val ALL_CLOUD_PLATFORMS = listOf(CLOUD_NETEASE, CLOUD_QQ, CLOUD_KUGOU)
+
+  /**
+   * 已启用的云端平台（至少一个）。
+   * 存储内容损坏或全部关闭时回落到三个平台全开，避免云端页变成空白。
+   */
+  fun enabledCloudPlatforms(): Set<String> {
+    val raw = CLOUD_PLATFORMS.getRequired(ALL_CLOUD_PLATFORMS.joinToString(","))
+    val enabled = raw.split(',')
+      .map { it.trim() }
+      .filter { it in ALL_CLOUD_PLATFORMS }
+      .toSet()
+    if (enabled.isEmpty()) {
+      return ALL_CLOUD_PLATFORMS.toSet()
+    }
+    // 按固定顺序返回，保证「第一个启用平台」稳定
+    return ALL_CLOUD_PLATFORMS.filter { it in enabled }.toCollection(LinkedHashSet())
+  }
+
+  /**
+   * 开关某个云端平台。至少保留一个，关闭最后一个时返回 false 且不写入。
+   */
+  fun setCloudPlatformEnabled(platform: String, enabled: Boolean): Boolean {
+    if (platform !in ALL_CLOUD_PLATFORMS) {
+      return false
+    }
+    val current = enabledCloudPlatforms().toMutableSet()
+    if (enabled) {
+      current.add(platform)
+    } else {
+      current.remove(platform)
+      if (current.isEmpty()) {
+        return false
+      }
+    }
+    CLOUD_PLATFORMS put ALL_CLOUD_PLATFORMS.filter { it in current }.joinToString(",")
+    return true
+  }
+
+  fun isCloudPlatformEnabled(platform: String): Boolean =
+    platform in enabledCloudPlatforms()
+
   fun isTermsAgreed(): Boolean = TERMS_AGREED.getRequired(false)
 
   fun setTermsAgreed(agreed: Boolean) {

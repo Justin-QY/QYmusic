@@ -8,6 +8,7 @@ import android.view.View
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.os.bundleOf
 import androidx.core.view.MenuProvider
+import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
@@ -41,6 +42,7 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
     private companion object {
         const val DATA_TTL_MS = 60_000L
         const val QR_TIMEOUT_MS = 180_000L
+        const val PLAY_QUEUE_TAG = "play_queue_dialog"
     }
 
     private var platform = PlatformLoginActivity.PLATFORM_NETEASE
@@ -101,6 +103,9 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
 
         binding.btnLogin.setOnClickListener { showLoginDialog() }
         binding.btnLogout.setOnClickListener { logout() }
+        binding.btnGoSetting.setOnClickListener {
+            navController.navigate(R.id.action_setting)
+        }
         binding.tvMoreLiked.setOnClickListener { openAll("liked") }
         binding.tvMorePlaylists.setOnClickListener { openAll("playlists") }
         binding.tvMoreArtists.setOnClickListener { openAll("artists") }
@@ -113,13 +118,16 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         super.onResume()
         if (firstResume) {
             firstResume = false
+            val enabled = SPConfig.enabledCloudPlatforms()
+            if (platform !in enabled) {
+                platform = enabled.first()
+            }
             if (!isLogged(platform)) {
-                // 自动切到已登录的平台
-                listOf(
-                    PlatformLoginActivity.PLATFORM_NETEASE,
-                    PlatformLoginActivity.PLATFORM_QQ,
-                    PlatformLoginActivity.PLATFORM_KUGOU,
-                ).firstOrNull { isLogged(it) }?.let { platform = it }
+                // 自动切到已登录且已启用的平台
+                SPConfig.ALL_CLOUD_PLATFORMS
+                    .filter { it in enabled }
+                    .firstOrNull { isLogged(it) }
+                    ?.let { platform = it }
             }
         }
         refreshUi()
@@ -129,11 +137,41 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         if (target == platform) {
             return
         }
+        // 设置里被关闭的平台即使芯片还残留在布局里也不响应
+        if (!SPConfig.isCloudPlatformEnabled(target)) {
+            return
+        }
         platform = target
         refreshUi()
     }
 
     private fun refreshUi() {
+        val platforms = SPConfig.enabledCloudPlatforms()
+        val hasPlatform = platforms.isNotEmpty()
+
+        // 当前平台被关闭时自动切到第一个启用平台
+        if (hasPlatform && platform !in platforms) {
+            platform = platforms.first()
+            loadJob?.cancel()
+            invalidateData()
+        }
+
+        binding.togglePlatform.isVisible = hasPlatform
+        binding.cardNoPlatform.isVisible = !hasPlatform
+        binding.chipNetease.isVisible = SPConfig.CLOUD_NETEASE in platforms
+        binding.chipQq.isVisible = SPConfig.CLOUD_QQ in platforms
+        binding.chipKuwo.isVisible = SPConfig.CLOUD_KUGOU in platforms
+
+        if (!hasPlatform) {
+            binding.cardLogin.isVisible = false
+            binding.cardProfile.isVisible = false
+            binding.groupContent.isVisible = false
+            binding.rvLiked.models = emptyList<MusicModel>()
+            binding.rvPlaylists.models = emptyList<PlayListModel>()
+            binding.rvArtists.models = emptyList<ArtistModel>()
+            return
+        }
+
         val logged = isLogged(platform)
         binding.cardLogin.visibility = if (logged) View.GONE else View.VISIBLE
         binding.cardProfile.visibility = if (logged) View.VISIBLE else View.GONE
@@ -518,11 +556,33 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
     }
 
     override fun onMenuItemSelected(menuItem: MenuItem): Boolean {
-        if (menuItem.itemId == R.id.settings_cloud) {
-            navController.navigate(R.id.action_setting)
-            return true
+        when (menuItem.itemId) {
+            R.id.search -> {
+                navController.navigate(R.id.action_search)
+                return true
+            }
+
+            R.id.play_queue -> {
+                showPlayQueue()
+                return true
+            }
+
+            R.id.settings_cloud -> {
+                navController.navigate(R.id.action_setting)
+                return true
+            }
         }
         return false
+    }
+
+    /** 播放队列：直接展示已有的 PlayQueueDialogFragment，不重复实现队列页 */
+    private fun showPlayQueue() {
+        val fragmentManager = requireActivity().supportFragmentManager
+        if (fragmentManager.findFragmentByTag(PLAY_QUEUE_TAG) != null) {
+            return
+        }
+        com.qymusic.app.ui.fragment.play.PlayQueueDialogFragment()
+            .show(fragmentManager, PLAY_QUEUE_TAG)
     }
 
     /**
