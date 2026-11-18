@@ -350,8 +350,13 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
             setBackgroundDrawable(
                 android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
             )
-            val width = (resources.displayMetrics.widthPixels * 0.92f).toInt()
-            setLayout(width, android.view.ViewGroup.LayoutParams.WRAP_CONTENT)
+            // 底部弹出：圆角由布局背景负责，宽度铺满屏幕
+            setGravity(android.view.Gravity.BOTTOM)
+            setLayout(
+                android.view.ViewGroup.LayoutParams.MATCH_PARENT,
+                android.view.ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            setDimAmount(0.45f)
         }
 
         view.tvLoginTitle.text = "登录" + platformName(target)
