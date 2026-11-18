@@ -1,0 +1,47 @@
+{
+  "schemaVersion": 1,
+  "id": "migu",
+  "name": "咪咕音乐",
+  "version": "0.1.0",
+  "apiVersion": "1.0",
+  "minHostVersion": "1.4.0",
+  "entry": "src/main.js",
+  "publisher": "MiaM1ku",
+  "capabilities": [
+    "searchSongs",
+    "searchAlbums",
+    "songDetails",
+    "playlistDetails",
+    "albumDetails",
+    "artistDetails",
+    "home",
+    "resolveStream",
+    "lyrics",
+    "account",
+    "login"
+  ],
+  "permissions": [
+    "network",
+    "clearTextNetwork",
+    "credentials"
+  ],
+  "networkDomains": [
+    "music.migu.cn",
+    "y.migu.cn",
+    "pd.musicapp.migu.cn",
+    "c.musicapp.migu.cn",
+    "d.musicapp.migu.cn",
+    "app.c.nf.migu.cn",
+    "app.pd.nf.migu.cn",
+    "freetyst.nf.migu.cn",
+    "tyst.migu.cn",
+    "*.migu.cn",
+    "*.nf.migu.cn"
+  ],
+  "networkMethods": [
+    "GET",
+    "POST",
+    "HEAD"
+  ],
+  "ui": []
+}
