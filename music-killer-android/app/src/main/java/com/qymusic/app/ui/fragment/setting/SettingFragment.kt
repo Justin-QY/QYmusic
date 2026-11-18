@@ -1,12 +1,7 @@
 package com.qymusic.app.ui.fragment.setting
 
-import android.content.ClipData
-import android.content.ClipboardManager
-import android.content.Context
 import android.content.Intent
 import android.graphics.Color
-import android.os.Handler
-import android.os.Looper
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
@@ -26,12 +21,10 @@ import com.qymusic.app.enums.MusicBridge
 import com.qymusic.app.model.LxScriptModel
 import com.qymusic.app.utils.AppStorage
 import com.qymusic.app.utils.AppUpdater
-import com.qymusic.app.utils.SleepTimer
-import com.qymusic.app.utils.SleepTimerDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /**
- * 设置页：按设计稿重组为「当前配置 / 曲库 / 播放 / 播放音源 / 通用 / 关于与联系」
+ * 设置页：按设计稿重组为「云端管理与底部导航 / 曲库 / 播放 / 播放音源 / 通用 / 关于与联系」
  */
 class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout.fragment_setting) {
 
@@ -41,16 +34,6 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
     }
 
     private var countingScripts = false
-
-    private val uiHandler = Handler(Looper.getMainLooper())
-
-    /** 定时播放剩余时间每秒刷新一次 */
-    private val sleepTimerTicker = object : Runnable {
-        override fun run() {
-            updateSleepTimerState()
-            uiHandler.postDelayed(this, 1000L)
-        }
-    }
 
     override fun initView() {
         // 磨砂玻璃背景 + 透明 AppBar，让渐变透上来
@@ -73,14 +56,11 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
             findNavController().navigate(R.id.action_setting_storage)
         }
 
-        binding.itemSleepTimer.setOnClickListener {
-            SleepTimerDialog.show(requireContext()) { updateSleepTimerState() }
-        }
-        binding.itemLyricSettings.setOnClickListener {
-            findNavController().navigate(R.id.action_setting_lyrics)
-        }
         binding.itemGeneralSettings.setOnClickListener {
             findNavController().navigate(R.id.action_setting_general)
+        }
+        binding.itemSearchSource.setOnClickListener {
+            findNavController().navigate(R.id.action_setting_search_source)
         }
         binding.itemLicense.setOnClickListener {
             findNavController().navigate(R.id.action_setting_license)
@@ -91,10 +71,8 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         binding.itemPrivacy.setOnClickListener {
             showLongTextDialog("隐私政策", getString(R.string.privacy_content))
         }
-        binding.itemVersion.setOnClickListener { copyVersion() }
 
         initCatalogToggle()
-        initSwitches()
 
         // 插件与底栏分别进入独立页面，避免两处重复配置
         binding.itemPluginManager.setOnClickListener {
@@ -112,48 +90,18 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         super.onResume()
         refreshSummary()
         refreshStorageSummary()
-        countScripts()
-        updateSleepTimerState()
-        uiHandler.removeCallbacks(sleepTimerTicker)
-        uiHandler.post(sleepTimerTicker)
     }
 
-    override fun onPause() {
-        uiHandler.removeCallbacks(sleepTimerTicker)
-        super.onPause()
-    }
-
-    // ------------------------------------------------------------------ 当前配置
+    // ------------------------------------------------------------------ 摘要
 
     private fun refreshSummary() {
         binding.tvVersion.text = "版本 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
-        binding.tvAboutVersion.text =
-            "版本 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})，点击复制"
-
-        binding.tvConfigCatalog.text = when (SPConfig.catalogSource()) {
-            SPConfig.SOURCE_KUGOU -> "酷狗"
-            SPConfig.SOURCE_QQ -> "QQ音乐"
-            else -> "网易云"
-        }
-
-        binding.tvConfigQuality.text =
-            MusicBridge.getBridgeForLevel(SPConfig.currentBridge()).displayName
-
-        val thirdEnabled = SPConfig.isThirdPartyEnabled() && SPConfig.thirdPartyKey().isNotBlank()
-        binding.tvConfigSource.text = if (thirdEnabled) "第三方优先" else "落雪优先"
 
         binding.tvQualityValue.text =
             MusicBridge.getBridgeForLevel(SPConfig.currentBridge()).displayName
 
-        binding.tvSourceThirdState.text = when {
-            thirdEnabled -> "ChKSz API · 已启用"
-            SPConfig.thirdPartyKey().isNotBlank() -> "ChKSz API · 已配置未启用"
-            else -> "ChKSz API · 未启用"
-        }
-
-        binding.switchTranslation.isChecked = SPConfig.isShowTranslation()
-        binding.tvLyricSettingsState.text = buildLyricSettingsSummary()
-        binding.tvUpdateState.text = "当前 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
+        binding.tvUpdateState.text =
+            "当前 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · 点击检查"
         binding.tvContactEmail.text = EMAIL
 
         // 两个入口的摘要：启用平台数 / 底栏模块数
@@ -162,40 +110,13 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         binding.tvNavManagerState.text =
             "${com.qymusic.app.config.NavModules.visible().size} 个模块显示在底栏，点击管理"
 
-        // 通用设置入口摘要：主题 · 默认启动页
+        // 通用设置入口摘要：主题 · 启动页 · 歌词
         binding.tvGeneralSettingsState.text = GeneralSettingsFragment.summary()
-    }
 
-    /** 歌词设置入口摘要：字号 + 翻译 + 超级岛，一眼看出当前配置 */
-    private fun buildLyricSettingsSummary(): String {
-        val size = SPConfig.lyricFontSize()
-        val sizeLabel = when (size) {
-            SPConfig.LYRIC_FONT_SIZE_SMALL -> "小"
-            SPConfig.LYRIC_FONT_SIZE_NORMAL -> "标准"
-            SPConfig.LYRIC_FONT_SIZE_LARGE -> "大"
-            SPConfig.LYRIC_FONT_SIZE_XLARGE -> "特大"
-            else -> "自定义"
-        }
-        val translation = if (SPConfig.isLyricTranslationEnabled()) "翻译开" else "翻译关"
-        val island = if (SPConfig.isLyricSuperIslandEnabled()) "超级岛开" else "超级岛关"
-        return "字号$sizeLabel · $translation · $island"
-    }
-
-    private fun countScripts() {
-        if (countingScripts) {
-            return
-        }
-        countingScripts = true
-        viewLifecycleOwner.lifecycleScope.launch {
-            try {
-                val list = Get<List<LxScriptModel>>(Api.LX_SCRIPTS).await()
-                binding.tvSourceLxState.text = "服务器脚本 · ${list.size} 个同时加载"
-            } catch (e: Exception) {
-                binding.tvSourceLxState.text = "服务器脚本 · 读取失败"
-            } finally {
-                countingScripts = false
-            }
-        }
+        // 曲库搜索入口摘要：聚合开关 · 启用平台数
+        binding.tvSearchSourceState.text =
+            (if (SPConfig.isAggregateSearch()) "聚合搜索开" else "聚合搜索关") +
+                " · ${SPConfig.enabledSearchPlatforms().size} 个平台"
     }
 
     // ------------------------------------------------------------------ 曲库
@@ -262,54 +183,22 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         }
     }
 
-    // ------------------------------------------------------------------ 开关
-
-    private fun initSwitches() {
-        binding.switchTranslation.setOnCheckedChangeListener { _, checked ->
-            SPConfig.setShowTranslation(checked)
-        }
-    }
-
-    // ------------------------------------------------------------------ 定时播放
-
-    /** 定时状态文案；弹窗本身由共享的 SleepTimerDialog 负责，与右上角菜单入口一致 */
-    private fun updateSleepTimerState() {
-        if (!isAdded || !::baseContentBinding.isInitialized) {
-            return
-        }
-        val text = if (SleepTimer.isActive()) {
-            "剩余 " + SleepTimerDialog.formatRemaining(SleepTimer.remainingMs()) + " 后暂停 · 点击取消"
-        } else {
-            "到点自动暂停播放"
-        }
-        if (binding.tvSleepTimerState.text.toString() != text) {
-            binding.tvSleepTimerState.text = text
-        }
-    }
-
     // ------------------------------------------------------------------ 关于
 
     private fun showLongTextDialog(title: String, content: String) {
         if (!isAdded) {
             return
         }
+        // 协议正文是 HTML（标题加粗 + 段落换行），统一交给 HtmlCompat 渲染
+        val text = androidx.core.text.HtmlCompat.fromHtml(
+            content,
+            androidx.core.text.HtmlCompat.FROM_HTML_MODE_LEGACY
+        )
         MaterialAlertDialogBuilder(requireContext())
             .setTitle(title)
-            .setMessage(content)
+            .setMessage(text)
             .setPositiveButton("关闭", null)
             .show()
-    }
-
-    private fun copyVersion() {
-        val text = "QY MUSIC ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})"
-        try {
-            val manager =
-                requireContext().getSystemService(Context.CLIPBOARD_SERVICE) as? ClipboardManager
-            manager?.setPrimaryClip(ClipData.newPlainText("版本号", text))
-            toast("版本号已复制")
-        } catch (e: Exception) {
-            toast(text)
-        }
     }
 
     // ------------------------------------------------------------------ 存储管理

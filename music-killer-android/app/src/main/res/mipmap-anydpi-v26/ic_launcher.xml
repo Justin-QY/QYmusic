@@ -1,5 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!--
+  自适应图标：前景是缩放到安全区内的完整图标（108dp 画布，内容约 74dp），
+  避免启动器按遮罩裁切时把图标底部切掉。背景用白色与图标自带的白边衔接。
+-->
 <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-    <background android:drawable="@drawable/ic_launcher_adaptive" />
-    <foreground android:drawable="@drawable/ic_launcher_foreground_img" />
+    <background android:drawable="@color/ic_launcher_bg" />
+    <foreground android:drawable="@drawable/ic_launcher_fg" />
 </adaptive-icon>

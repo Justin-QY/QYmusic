@@ -10,7 +10,7 @@ import com.qymusic.app.R
  * 长按拖动排序的通用实现（ItemTouchHelper）：
  * 拖动中整行抬起 + 高亮，松手回调 onDrop 保存顺序。
  *
- * 「插件管理」与「底部导航管理」共用，列表数量很少，无需额外依赖。
+ * 「云端管理」与「底部导航管理」共用，列表数量很少，无需额外依赖。
  */
 object DragSortSupport {
 

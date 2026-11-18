@@ -8,6 +8,7 @@
         <import type="com.drake.engine.databinding.GlideDataBindingComponent" />
         <import type="com.drake.engine.databinding.DataBindingComponent" />
         <import type="com.qymusic.app.R" />
+        <import type="android.view.View" />
 
         <variable
             name="m"
@@ -61,9 +62,27 @@
             app:layout_constraintBottom_toBottomOf="@id/music_cover"
             app:layout_constraintTop_toBottomOf="@id/music_name"
             app:layout_constraintStart_toStartOf="@id/music_name"
-            app:layout_constraintEnd_toEndOf="@id/music_name"
+            app:layout_constraintEnd_toStartOf="@id/music_source"
             android:layout_width="0dp"
             android:layout_height="wrap_content"/>
+
+        <TextView
+            android:id="@+id/music_source"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="6dp"
+            android:background="@drawable/bg_badge"
+            android:paddingStart="6dp"
+            android:paddingTop="1dp"
+            android:paddingEnd="6dp"
+            android:paddingBottom="1dp"
+            android:text="@{m.sourceLabel}"
+            android:textAppearance="@style/TextAppearance.Material3.LabelSmall"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:visibility="@{m.showSource ? View.VISIBLE : View.GONE}"
+            app:layout_constraintBottom_toBottomOf="@id/music_cover"
+            app:layout_constraintStart_toEndOf="@id/music_artist"
+            app:layout_constraintTop_toBottomOf="@id/music_name" />
 
         <androidx.appcompat.widget.AppCompatImageButton
             selected="@{m.favorite}"

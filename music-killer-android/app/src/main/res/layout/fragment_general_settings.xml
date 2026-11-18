@@ -15,7 +15,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:lineSpacingExtra="3dp"
-            android:text="主题与启动页集中在这里设置，修改后立即保存，下次启动继续生效。"
+            android:text="主题、歌词与启动页集中在这里设置，修改后立即保存，下次启动继续生效。"
             android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
             android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -130,6 +130,90 @@
 
         </com.google.android.material.card.MaterialCardView>
 
+        <!-- 歌词 -->
+        <TextView
+            style="@style/TextAppearance.Material3.LabelLarge"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:layout_marginBottom="8dp"
+            android:text="歌词"
+            android:textColor="?attr/colorOnSurfaceVariant" />
+
+        <com.google.android.material.card.MaterialCardView
+            style="@style/Widget.Material3.CardView.Filled"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            app:cardBackgroundColor="@color/glass_card"
+            app:cardCornerRadius="20dp"
+            app:cardElevation="0dp"
+            app:contentPadding="0dp"
+            app:strokeColor="@color/glass_stroke"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:id="@+id/item_lyric_settings"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="?attr/selectableItemBackground"
+                android:gravity="center_vertical"
+                android:minHeight="72dp"
+                android:orientation="horizontal"
+                android:paddingStart="20dp"
+                android:paddingTop="16dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="16dp">
+
+                <FrameLayout
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="@drawable/bg_icon_circle">
+
+                    <ImageView
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_gravity="center"
+                        android:contentDescription="歌词设置"
+                        android:src="@drawable/baseline_lyrics_24"
+                        app:tint="?attr/colorPrimary" />
+
+                </FrameLayout>
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="14dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="歌词设置"
+                        android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
+
+                    <TextView
+                        android:id="@+id/tv_lyric_settings_state"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="2dp"
+                        android:text="字号标准 · 翻译关 · 超级岛关"
+                        android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+                        android:textColor="?attr/colorOnSurfaceVariant" />
+
+                </LinearLayout>
+
+                <ImageView
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:contentDescription="进入"
+                    android:src="@drawable/baseline_chevron_right_24"
+                    app:tint="?attr/colorOnSurfaceVariant" />
+
+            </LinearLayout>
+
+        </com.google.android.material.card.MaterialCardView>
+
         <!-- 默认启动页 -->
         <TextView
             style="@style/TextAppearance.Material3.LabelLarge"
@@ -236,7 +320,7 @@
                 android:layout_marginStart="10dp"
                 android:layout_weight="1"
                 android:lineSpacingExtra="3dp"
-                android:text="主题切换后界面会自动重建；如果部分页面没有立即刷新，重启应用即可完全生效。默认启动页只影响从桌面正常启动，深链、通知和分享进入仍保持原有页面。"
+                android:text="主题切换后界面会自动重建；如果部分页面没有立即刷新，重启应用即可完全生效。默认启动页只影响从桌面正常启动，深链、通知和分享进入仍保持原有页面。有新版本时会先查服务器，服务器不可用时自动从 GitHub 下载，必须更新后才能继续使用。"
                 android:textAppearance="@style/TextAppearance.Material3.BodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant" />
 

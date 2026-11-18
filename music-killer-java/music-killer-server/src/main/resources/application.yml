@@ -96,6 +96,6 @@ lx:
 # App 鍦ㄧ嚎鏇存柊
 app:
   # 寮哄埗鏇存柊锛氫綆浜庤 versionCode 鐨勫鎴风锛屾湇鍔＄涓嶈繑鍥炰换浣曚笟鍔℃暟鎹?
-  min-version-code: 32
+  min-version-code: 34
   update:
     dir: /opt/music-killer/update # update.json 涓?apk 鎵€鍦ㄧ洰褰曪紝閮ㄧ讲鏃舵寕杞?

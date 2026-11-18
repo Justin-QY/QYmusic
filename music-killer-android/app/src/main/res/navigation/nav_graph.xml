@@ -224,16 +224,16 @@
             app:popExitAnim="@anim/slide_out_right" />
 
         <action
-            android:id="@+id/action_setting_lyrics"
-            app:destination="@id/lyricsSettingsFragment"
+            android:id="@+id/action_setting_general"
+            app:destination="@id/generalSettingsFragment"
             app:enterAnim="@anim/slide_in_right"
             app:exitAnim="@anim/slide_out_left"
             app:popEnterAnim="@anim/slide_in_left"
             app:popExitAnim="@anim/slide_out_right" />
 
         <action
-            android:id="@+id/action_setting_general"
-            app:destination="@id/generalSettingsFragment"
+            android:id="@+id/action_setting_search_source"
+            app:destination="@id/searchSourceFragment"
             app:enterAnim="@anim/slide_in_right"
             app:exitAnim="@anim/slide_out_left"
             app:popEnterAnim="@anim/slide_in_left"
@@ -242,10 +242,26 @@
     </fragment>
 
     <fragment
+        android:id="@+id/searchSourceFragment"
+        android:name="com.qymusic.app.ui.fragment.setting.SearchSourceFragment"
+        android:label="曲库搜索"
+        tools:layout="@layout/fragment_search_source" />
+
+    <fragment
         android:id="@+id/generalSettingsFragment"
         android:name="com.qymusic.app.ui.fragment.setting.GeneralSettingsFragment"
         android:label="通用设置"
-        tools:layout="@layout/fragment_general_settings" />
+        tools:layout="@layout/fragment_general_settings">
+
+        <action
+            android:id="@+id/action_general_lyrics"
+            app:destination="@id/lyricsSettingsFragment"
+            app:enterAnim="@anim/slide_in_right"
+            app:exitAnim="@anim/slide_out_left"
+            app:popEnterAnim="@anim/slide_in_left"
+            app:popExitAnim="@anim/slide_out_right" />
+
+    </fragment>
 
     <fragment
         android:id="@+id/lyricsSettingsFragment"
@@ -262,7 +278,7 @@
     <fragment
         android:id="@+id/moduleManagerFragment"
         android:name="com.qymusic.app.ui.fragment.setting.ModuleManagerFragment"
-        android:label="插件管理"
+        android:label="云端管理"
         tools:layout="@layout/fragment_module_manager" />
 
     <fragment

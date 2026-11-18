@@ -394,6 +394,89 @@ object SPConfig {
   fun isCloudPlatformEnabled(platform: String): Boolean =
     platform in enabledCloudPlatforms()
 
+  // ------------------------------------------------------------------ 曲库搜索
+
+  /** 搜索时参与的平台，逗号分隔，默认三个全开 */
+  const val SEARCH_PLATFORMS = "search_platforms"
+
+  /** 搜索平台排序，逗号分隔，默认 wy,qq,kg */
+  const val SEARCH_PLATFORM_ORDER = "search_platform_order"
+
+  /** 聚合搜索：多个平台并发搜索并合并结果，默认关闭 */
+  const val SEARCH_AGGREGATE = "search_aggregate"
+
+  /** 搜索平台的固定顺序 */
+  val ALL_SEARCH_PLATFORMS = listOf(SOURCE_NETEASE, SOURCE_QQ, SOURCE_KUGOU)
+
+  /** 已保存的搜索平台顺序（始终包含全部平台） */
+  fun searchPlatformOrder(): List<String> {
+    val raw = SEARCH_PLATFORM_ORDER.getRequired(ALL_SEARCH_PLATFORMS.joinToString(","))
+    val saved = raw.split(',')
+      .map { it.trim() }
+      .filter { it in ALL_SEARCH_PLATFORMS }
+      .distinct()
+    return saved + ALL_SEARCH_PLATFORMS.filter { it !in saved }
+  }
+
+  fun setSearchPlatformOrder(order: List<String>) {
+    val keys = order.filter { it in ALL_SEARCH_PLATFORMS }.distinct()
+    val full = keys + ALL_SEARCH_PLATFORMS.filter { it !in keys }
+    SEARCH_PLATFORM_ORDER put full.joinToString(",")
+  }
+
+  /** 按已启用平台的新顺序重排，未启用平台保持相对位置 */
+  fun applySearchPlatformOrder(enabledOrder: List<String>) {
+    val newOrder = enabledOrder.filter { it in ALL_SEARCH_PLATFORMS }.distinct()
+    val full = searchPlatformOrder()
+    if (newOrder.isEmpty() || newOrder.toSet() != enabledSearchPlatforms()) {
+      return
+    }
+    var index = 0
+    val merged = full.map { key -> if (key in newOrder) newOrder[index++] else key }
+    setSearchPlatformOrder(merged)
+  }
+
+  /** 已启用的搜索平台（至少一个），按保存顺序返回 */
+  fun enabledSearchPlatforms(): Set<String> {
+    val raw = SEARCH_PLATFORMS.getRequired(ALL_SEARCH_PLATFORMS.joinToString(","))
+    val enabled = raw.split(',')
+      .map { it.trim() }
+      .filter { it in ALL_SEARCH_PLATFORMS }
+      .toSet()
+    if (enabled.isEmpty()) {
+      return ALL_SEARCH_PLATFORMS.toSet()
+    }
+    return searchPlatformOrder().filter { it in enabled }.toCollection(LinkedHashSet())
+  }
+
+  /** 开关搜索平台，至少保留一个 */
+  fun setSearchPlatformEnabled(platform: String, enabled: Boolean): Boolean {
+    if (platform !in ALL_SEARCH_PLATFORMS) {
+      return false
+    }
+    val current = enabledSearchPlatforms().toMutableSet()
+    if (enabled) {
+      current.add(platform)
+    } else {
+      current.remove(platform)
+      if (current.isEmpty()) {
+        return false
+      }
+    }
+    SEARCH_PLATFORMS put ALL_SEARCH_PLATFORMS.filter { it in current }.joinToString(",")
+    return true
+  }
+
+  fun isSearchPlatformEnabled(platform: String): Boolean =
+    platform in enabledSearchPlatforms()
+
+  /** 聚合搜索是否开启，默认关闭（只搜当前单个平台） */
+  fun isAggregateSearch(): Boolean = SEARCH_AGGREGATE.getRequired(false)
+
+  fun setAggregateSearch(enabled: Boolean) {
+    SEARCH_AGGREGATE put enabled
+  }
+
   fun isTermsAgreed(): Boolean = TERMS_AGREED.getRequired(false)
 
   fun setTermsAgreed(agreed: Boolean) {

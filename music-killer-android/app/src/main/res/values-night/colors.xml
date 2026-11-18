@@ -4,7 +4,7 @@
     <color name="glass_card">#B31B212B</color>
     <color name="glass_stroke">#33FFFFFF</color>
 
-    <!-- 模块与插件页：深色下的实心卡片与行底色 -->
+    <!-- 云端管理页：深色下的实心卡片与行底色 -->
     <color name="module_card">#FF1B1F27</color>
     <color name="module_row">#FF252B35</color>
     <color name="module_stroke">#1FFFFFFF</color>

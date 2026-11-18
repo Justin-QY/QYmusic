@@ -2,6 +2,7 @@ package com.qymusic.app.ui.fragment.setting
 
 import android.graphics.Color
 import androidx.appcompat.app.AppCompatDelegate
+import androidx.navigation.fragment.findNavController
 import com.drake.tooltip.toast
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.qymusic.app.R
@@ -33,8 +34,26 @@ class GeneralSettingsFragment :
 
     fun startPageLabel(): String = NavModules.startPage().title
 
-    /** 设置页入口右侧摘要：主题 · 启动页 */
-    fun summary(): String = "主题${themeLabel(SPConfig.themeMode())} · 启动${startPageLabel()}"
+    /** 歌词字号标签：小 / 标准 / 大 / 特大 */
+    fun lyricSizeLabel(): String = when (SPConfig.lyricFontSize()) {
+      SPConfig.LYRIC_FONT_SIZE_SMALL -> "小"
+      SPConfig.LYRIC_FONT_SIZE_NORMAL -> "标准"
+      SPConfig.LYRIC_FONT_SIZE_LARGE -> "大"
+      SPConfig.LYRIC_FONT_SIZE_XLARGE -> "特大"
+      else -> "自定义"
+    }
+
+    /** 歌词设置入口摘要：字号 + 翻译 + 超级岛，一眼看出当前配置 */
+    fun lyricSummary(): String {
+      val sizeLabel = lyricSizeLabel()
+      val translation = if (SPConfig.isLyricTranslationEnabled()) "翻译开" else "翻译关"
+      val island = if (SPConfig.isLyricSuperIslandEnabled()) "超级岛开" else "超级岛关"
+      return "字号$sizeLabel · $translation · $island"
+    }
+
+    /** 设置页入口右侧摘要：主题 · 启动页 · 歌词字号 */
+    fun summary(): String =
+      "主题${themeLabel(SPConfig.themeMode())} · 启动${startPageLabel()} · 歌词${lyricSizeLabel()}"
   }
 
   /** 同步 UI 时屏蔽控件回调，避免把默认值写回 SPConfig */
@@ -64,6 +83,9 @@ class GeneralSettingsFragment :
     }
 
     binding.itemStartPage.setOnClickListener { showStartPageDialog() }
+    binding.itemLyricSettings.setOnClickListener {
+      findNavController().navigate(R.id.action_general_lyrics)
+    }
   }
 
   override fun initData() {
@@ -88,6 +110,8 @@ class GeneralSettingsFragment :
     binding.tvThemeHint.text = "当前：${themeLabel(SPConfig.themeMode())}"
 
     binding.tvStartPageValue.text = "当前：${startPageLabel()} · 点击切换"
+
+    binding.tvLyricSettingsState.text = lyricSummary()
 
     syncing = false
   }

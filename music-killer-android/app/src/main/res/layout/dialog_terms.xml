@@ -45,11 +45,12 @@
                 android:id="@+id/tv_terms"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:lineSpacingExtra="4dp"
-                android:text="@string/terms_content"
+                android:lineSpacingExtra="3dp"
+                android:lineSpacingMultiplier="1.15"
                 android:textAppearance="@style/TextAppearance.Material3.BodySmall"
                 android:textColor="?attr/colorOnSurfaceVariant"
-                android:textIsSelectable="true" />
+                android:textIsSelectable="true"
+                android:textSize="13sp" />
         </ScrollView>
 
         <TextView

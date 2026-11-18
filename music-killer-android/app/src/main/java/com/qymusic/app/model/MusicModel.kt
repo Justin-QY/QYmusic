@@ -84,6 +84,18 @@ data class MusicModel(
 
   val showName get() = fullName.ifEmpty { name }
 
+  /** 平台展示名：聚合搜索结果里标注来源 */
+  val sourceLabel: String
+    get() = when (source) {
+      "qq" -> "QQ音乐"
+      "kg" -> "酷狗"
+      else -> "网易云"
+    }
+
+  /** 是否显示来源标签（仅聚合搜索结果展示） */
+  @Transient
+  var showSource: Boolean = false
+
   @get:Bindable
   var isSelected = false
     set(value) {

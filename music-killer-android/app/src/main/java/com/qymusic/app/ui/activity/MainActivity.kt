@@ -139,6 +139,11 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
    */
   private fun showTermsDialog() {
     val view = DialogTermsBinding.inflate(layoutInflater)
+    // 协议正文是 HTML，交给 HtmlCompat 渲染：保留标题加粗与段落换行
+    view.tvTerms.text = androidx.core.text.HtmlCompat.fromHtml(
+      getString(R.string.terms_content),
+      androidx.core.text.HtmlCompat.FROM_HTML_MODE_LEGACY
+    )
     val dialog = Dialog(this)
     dialog.requestWindowFeature(Window.FEATURE_NO_TITLE)
     dialog.setContentView(view.root)

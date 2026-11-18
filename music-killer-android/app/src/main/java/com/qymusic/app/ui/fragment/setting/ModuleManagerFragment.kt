@@ -14,7 +14,7 @@ import com.qymusic.app.databinding.ItemModulePluginDisabledBinding
 import com.qymusic.app.ui.widget.DragSortSupport
 
 /**
- * 插件管理页（参考 QPlayer 插件页）：
+ * 云端管理页（参考 QPlayer 插件页）：
  * - 已启用的云端平台可开关、可长按拖动排序；
  * - 未启用的平台点「启用」即可加回，至少保留一个。
  *

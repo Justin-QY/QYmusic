@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 启动加载页背景：浅色渐变 + 两团彩色光晕 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item>
+        <shape>
+            <gradient
+                android:angle="270"
+                android:endColor="#F3F5FF"
+                android:startColor="#FFFFFF" />
+        </shape>
+    </item>
+
+    <item
+        android:width="320dp"
+        android:height="320dp"
+        android:gravity="top|right">
+        <shape android:shape="oval">
+            <gradient
+                android:endColor="#005B6CFF"
+                android:gradientRadius="200dp"
+                android:startColor="#4D5B6CFF"
+                android:type="radial" />
+        </shape>
+    </item>
+
+    <item
+        android:width="280dp"
+        android:height="280dp"
+        android:gravity="bottom|left">
+        <shape android:shape="oval">
+            <gradient
+                android:endColor="#008B5CF6"
+                android:gradientRadius="180dp"
+                android:startColor="#3D8B5CF6"
+                android:type="radial" />
+        </shape>
+    </item>
+
+</layer-list>

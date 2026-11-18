@@ -200,6 +200,12 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         styleChip(binding.chipQq, platform == PlatformLoginActivity.PLATFORM_QQ)
         styleChip(binding.chipKuwo, platform == PlatformLoginActivity.PLATFORM_KUGOU)
         binding.btnLogin.text = "登录" + platformName()
+        binding.btnLogin.setCompoundDrawablesRelativeWithIntrinsicBounds(
+            platformIcon(platform),
+            0,
+            R.drawable.ic_chevron_right_white,
+            0
+        )
 
         // 登录卡片文案跟随当前平台，避免切到 QQ/酷狗后仍显示「登录网易云账号」
         binding.tvLoginCardTitle.text = "登录" + platformName() + "账号"
@@ -231,7 +237,7 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
     }
 
     /**
-     * 按「模块与插件」页保存的顺序重排芯片：只把已启用的平台放入容器，
+     * 按「云端管理」页保存的顺序重排芯片：只把已启用的平台放入容器，
      * 顺序没变化时不动视图，避免每次 onResume 都重建。
      */
     private fun orderChips(platforms: Set<String>) {
@@ -259,16 +265,32 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         }
     }
 
+    /** 芯片配色：选中为蓝紫渐变胶囊 + 白字白图标，未选中为透明 + 灰色文字 */
     private fun styleChip(view: android.widget.TextView, selected: Boolean) {
         view.setBackgroundResource(
-            if (selected) R.drawable.bg_segment_selected else android.R.color.transparent
+            if (selected) R.drawable.bg_cloud_pill_selected else android.R.color.transparent
         )
         val attr = if (selected) {
             com.google.android.material.R.attr.colorOnPrimary
         } else {
             com.google.android.material.R.attr.colorOnSurfaceVariant
         }
-        view.setTextColor(com.google.android.material.color.MaterialColors.getColor(view, attr))
+        val color = com.google.android.material.color.MaterialColors.getColor(view, attr)
+        view.setTextColor(color)
+        // 平台小图标跟随文字颜色
+        val tint = android.content.res.ColorStateList.valueOf(color)
+        view.compoundDrawablesRelative.forEach { drawable -> drawable?.setTintList(tint) }
+        view.setTypeface(
+            null,
+            if (selected) android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL
+        )
+    }
+
+    /** 当前平台的图标：胶囊与登录按钮共用 */
+    private fun platformIcon(target: String): Int = when (target) {
+        PlatformLoginActivity.PLATFORM_QQ -> R.drawable.ic_plat_qq
+        PlatformLoginActivity.PLATFORM_KUGOU -> R.drawable.ic_plat_kugou
+        else -> R.drawable.ic_plat_netease
     }
 
     private fun loadData(force: Boolean = false) {
