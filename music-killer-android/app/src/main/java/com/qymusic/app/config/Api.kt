@@ -2,7 +2,7 @@ package com.qymusic.app.config
 
 object Api {
   /** 服务端地址（部署时可改到自己的域名） */
-  const val BASE_API: String = "http://129.203.137.244:8002"
+  const val BASE_API: String = "https://api.qyder.com"
 
   const val HOME_DATA = "/home/data"
 
