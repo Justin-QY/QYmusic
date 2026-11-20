@@ -140,16 +140,53 @@
                     android:textSize="21sp"
                     android:textStyle="bold" />
 
-                <TextView
-                    android:id="@+id/tv_login_card_desc"
-                    android:layout_width="match_parent"
+                <LinearLayout
+                    android:id="@+id/row_login_features"
+                    android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
-                    android:lineSpacingExtra="4dp"
-                    android:text="登录后可查看你收藏的歌手、歌单，以及「我喜欢的音乐」。登录凭据只保存在本机。"
-                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-                    android:textColor="?attr/colorOnSurfaceVariant"
-                    android:textSize="13.5sp" />
+                    android:layout_marginTop="12dp"
+                    android:orientation="horizontal">
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:background="@drawable/bg_badge"
+                        android:paddingStart="12dp"
+                        android:paddingTop="6dp"
+                        android:paddingEnd="12dp"
+                        android:paddingBottom="6dp"
+                        android:text="收藏歌单"
+                        android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
+                        android:textColor="?attr/colorOnSecondaryContainer" />
+
+                    <TextView
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_badge"
+                        android:paddingStart="12dp"
+                        android:paddingTop="6dp"
+                        android:paddingEnd="12dp"
+                        android:paddingBottom="6dp"
+                        android:text="我喜欢的音乐"
+                        android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
+                        android:textColor="?attr/colorOnSecondaryContainer" />
+
+                    <TextView
+                        android:id="@+id/tag_artists"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:background="@drawable/bg_badge"
+                        android:paddingStart="12dp"
+                        android:paddingTop="6dp"
+                        android:paddingEnd="12dp"
+                        android:paddingBottom="6dp"
+                        android:text="收藏歌手"
+                        android:textAppearance="@style/TextAppearance.Material3.LabelMedium"
+                        android:textColor="?attr/colorOnSecondaryContainer" />
+
+                </LinearLayout>
 
                 <TextView
                     android:id="@+id/btn_login"

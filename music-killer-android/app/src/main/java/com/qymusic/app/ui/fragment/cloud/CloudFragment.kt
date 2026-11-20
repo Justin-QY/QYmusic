@@ -210,13 +210,9 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
             0
         )
 
-        // 登录卡片文案跟随当前平台，避免切到 QQ/酷狗后仍显示「登录网易云账号」
+        // 登录卡片标题跟随当前平台，能力用标签展示，不写长段说明
         binding.tvLoginCardTitle.text = "登录" + platformName() + "账号"
-        binding.tvLoginCardDesc.text = if (platform == PlatformLoginActivity.PLATFORM_NETEASE) {
-            "登录后可查看你收藏的歌手、歌单，以及「我喜欢的音乐」。登录凭据只保存在本机。"
-        } else {
-            "登录后可查看收藏的歌单与「我喜欢的音乐」。登录凭据只保存在本机。"
-        }
+        binding.tagArtists.isVisible = platform == PlatformLoginActivity.PLATFORM_NETEASE
 
         val isNetease = platform == PlatformLoginActivity.PLATFORM_NETEASE
         // 收藏歌手只有网易云有，整行（标题 + 查看全部）一起隐藏
@@ -530,6 +526,9 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
             }
         }
         dialog.show()
+        // 分组默认已选中「扫码」，check() 不会触发监听器，这里显式加载一次，
+        // 否则弹窗打开后二维码区域一直是空白。
+        loadQr(view, dialog, target)
     }
 
     private fun loadQr(
@@ -545,16 +544,35 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         val deadline = System.currentTimeMillis() + QR_TIMEOUT_MS
         qrJob = viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val data = Get<com.qymusic.app.model.QrCreate>(
-                    when {
-                        isQq -> Api.QR_QQ
-                        isKugou -> Api.QR_KUGOU
-                        else -> Api.QR_NETEASE
+                val createUrl = when {
+                    isQq -> Api.QR_QQ
+                    isKugou -> Api.QR_KUGOU
+                    else -> Api.QR_NETEASE
+                }
+                // 服务端偶发取不到图时自动重试一次，用户不用手动点刷新
+                var created: com.qymusic.app.model.QrCreate? = null
+                var qrBitmap: android.graphics.Bitmap? = null
+                var lastError: Exception? = null
+                for (attempt in 0 until 2) {
+                    try {
+                        val result = Get<com.qymusic.app.model.QrCreate>(createUrl).await()
+                        val bitmap = decodeQr(result.image)
+                        if (bitmap != null) {
+                            created = result
+                            qrBitmap = bitmap
+                            break
+                        }
+                    } catch (e: kotlinx.coroutines.CancellationException) {
+                        throw e
+                    } catch (e: Exception) {
+                        lastError = e
                     }
-                ).await()
-                val bitmap = decodeQr(data.image)
-                if (bitmap == null) {
-                    view.tvQrStatus.text = "二维码解析失败，请刷新"
+                }
+                val data = created
+                val bitmap = qrBitmap
+                if (data == null || bitmap == null) {
+                    view.tvQrStatus.text = lastError?.message?.takeIf { it.isNotBlank() }
+                        ?: "二维码获取失败，请刷新"
                     return@launch
                 }
                 view.imgQr.setImageBitmap(bitmap)
@@ -626,7 +644,9 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
     }
 
     private fun decodeQr(base64: String): android.graphics.Bitmap? = try {
-        val bytes = android.util.Base64.decode(base64, android.util.Base64.DEFAULT)
+        // 兼容 data:image/png;base64, 前缀
+        val raw = base64.substringAfter("base64,", base64).trim()
+        val bytes = android.util.Base64.decode(raw, android.util.Base64.DEFAULT)
         android.graphics.BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
     } catch (e: Exception) {
         null

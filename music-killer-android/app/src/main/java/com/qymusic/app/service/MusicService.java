@@ -451,10 +451,6 @@ public class MusicService extends MediaSessionService implements Player.Listener
             String kgCookie = dataSpec.uri.getQueryParameter("kgCookie");
 
             String cacheKey = source + "|" + id + "|" + bridge;
-            // QQ 音乐匿名只给空 vkey，播放必须带登录 Cookie，提前给出明确提示
-            if ("qq".equals(source) && (qqCookie == null || qqCookie.isEmpty())) {
-                throw new IOException("QQ 音乐播放需要先登录，请到「云端」登录 QQ 音乐");
-            }
             String playUrl = null;
             CachedUrl cached = URL_CACHE.get(cacheKey);
             if (cached != null && cached.expireAt > System.currentTimeMillis()) {

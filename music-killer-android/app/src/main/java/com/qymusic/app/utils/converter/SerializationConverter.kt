@@ -2,7 +2,6 @@
 
 package com.qymusic.app.utils.converter
 
-import com.drake.net.Net
 import com.drake.net.NetConfig
 import com.drake.net.convert.NetConverter
 import com.drake.net.exception.ConvertException
@@ -13,7 +12,6 @@ import com.drake.net.exception.ServerResponseException
 import com.drake.net.request.kType
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.serializer
-import okhttp3.OkHttpClient
 import okhttp3.Response
 import org.json.JSONException
 import org.json.JSONObject
@@ -32,53 +30,50 @@ class SerializationConverter(
 
   override fun <R> onConvert(succeed: Type, response: Response): R? {
     try {
-      return NetConverter.onConvert<R>(succeed, response)
-    } catch (e: ConvertException) {
-      val code = response.code
+      val httpCode = response.code
       when {
-        code in 200..299 -> { // 请求成功
-          val bodyString = response.body?.string() ?: return null
-          val kType = response.request.kType
-            ?: throw ConvertException(response, "请求缺少类型信息")
-          return try {
-            val json = JSONObject(bodyString) // 获取JSON中后端定义的错误码和错误信息
-            when (val srvCode = json.getString(this.code)) {
-              success -> {
-                if (!json.has("data")) {
-                  return null
-                }
-                // data 是字符串时 getString 已经去掉引号，再走 JSON 解析会失败
-                if (succeed == String::class.java) {
-                  return json.getString("data") as R
-                }
-                parseBody<R>(response, bodyString = json.getString("data"), kType = kType)
-              }
-
-              "401" -> {
-                val errorMessage = json.optString(
-                  message,
-                  NetConfig.app.getString(com.drake.net.R.string.no_error_message)
-                )
-                throw ResponseException(response, errorMessage, tag = srvCode)
-              }
-
-              else -> {
-                val errorMessage = json.optString(
-                  message,
-                  NetConfig.app.getString(com.drake.net.R.string.no_error_message)
-                )
-                throw ResponseException(response, errorMessage, tag = srvCode) // 将业务错误码作为tag传递
-              }
-            }
-          } catch (_: JSONException) { // 固定格式JSON分析失败直接解析JSON
-            parseBody<R>(response, bodyString, kType)
-          }
-        }
-
-        code in 400..499 -> throw RequestParamsException(response, code.toString()) // 请求参数错误
-        code >= 500 -> throw ServerResponseException(response, code.toString()) // 服务器异常错误
+        httpCode in 200..299 -> Unit
+        httpCode in 400..499 -> throw RequestParamsException(response, httpCode.toString())
+        httpCode >= 500 -> throw ServerResponseException(response, httpCode.toString())
         else -> throw ConvertException(response, message = "Http status code not within range")
       }
+
+      val bodyString = response.body?.string() ?: return null
+      val kType = response.request.kType
+        ?: throw ConvertException(response, "请求缺少类型信息")
+
+      // 先按业务信封 {code, msg, data} 解析。
+      // 不能先交给默认转换器：字段全带默认值的模型（如二维码 QrCreate）会把
+      // 整个信封当成空对象解析成功，导致 data 里的 image 变成空字符串。
+      val envelope = try {
+        JSONObject(bodyString)
+      } catch (_: JSONException) {
+        null
+      }
+
+      if (envelope == null || !envelope.has(this.code)) {
+        // 非信封格式（数组 / 纯文本）直接按目标类型解析
+        return parseBody<R>(response, bodyString, kType)
+      }
+
+      val srvCode = envelope.optString(this.code)
+      if (srvCode != success) {
+        val errorMessage = envelope.optString(
+          message,
+          NetConfig.app.getString(com.drake.net.R.string.no_error_message)
+        )
+        // 将业务错误码作为tag传递
+        throw ResponseException(response, errorMessage, tag = srvCode)
+      }
+
+      if (!envelope.has("data")) {
+        return null
+      }
+      // data 是字符串时 getString 已经去掉引号，再走 JSON 解析会失败
+      if (succeed == String::class.java) {
+        return envelope.getString("data") as R
+      }
+      return parseBody<R>(response, envelope.getString("data"), kType)
     } catch (e: NetException) {
       // 业务异常（如服务端返回的提示）原样抛出
       throw e

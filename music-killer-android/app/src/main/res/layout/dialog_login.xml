@@ -150,19 +150,10 @@
             android:orientation="vertical"
             android:visibility="gone">
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:lineSpacingExtra="3dp"
-                android:text="打开官方网页登录，登录成功后会自动返回。若页面打不开或被风控，请改用 Cookie 方式。"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:textSize="13sp" />
-
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/btn_open_web"
                 android:layout_width="match_parent"
                 android:layout_height="50dp"
-                android:layout_marginTop="12dp"
                 android:insetTop="0dp"
                 android:insetBottom="0dp"
                 android:text="打开网页登录"
