@@ -17,14 +17,6 @@
             android:paddingEnd="16dp"
             android:paddingBottom="28dp">
 
-            <TextView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:lineSpacingExtra="3dp"
-                android:text="选择的音质拿不到时，会自动降级播放。无损音质需要音源支持。"
-                android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-                android:textColor="?attr/colorOnSurfaceVariant" />
-
             <com.google.android.material.card.MaterialCardView
                 style="@style/Widget.Material3.CardView.Filled"
                 android:layout_width="match_parent"
@@ -74,14 +66,6 @@
                                 android:layout_height="wrap_content"
                                 android:text="标准 128k"
                                 android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
-
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="流畅、省流量"
-                                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                                android:textColor="?attr/colorOnSurfaceVariant" />
 
                         </LinearLayout>
 
@@ -135,14 +119,6 @@
                                 android:text="高品质 320k"
                                 android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
 
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="更清晰的听感"
-                                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                                android:textColor="?attr/colorOnSurfaceVariant" />
-
                         </LinearLayout>
 
                     </LinearLayout>
@@ -183,14 +159,6 @@
                                 android:text="无损 FLAC"
                                 android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
 
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="无损压缩，需要音源支持"
-                                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                                android:textColor="?attr/colorOnSurfaceVariant" />
-
                         </LinearLayout>
 
                     </LinearLayout>
@@ -230,14 +198,6 @@
                                 android:layout_height="wrap_content"
                                 android:text="Hi-Res 24bit FLAC"
                                 android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
-
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="高解析度无损，需要音源支持"
-                                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                                android:textColor="?attr/colorOnSurfaceVariant" />
 
                         </LinearLayout>
 
@@ -284,14 +244,6 @@
                             android:text="省流量模式"
                             android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
 
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:text="使用移动网络时最高播放 128k，Wi-Fi 下不受影响"
-                            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                            android:textColor="?attr/colorOnSurfaceVariant" />
-
                     </LinearLayout>
 
                     <com.google.android.material.materialswitch.MaterialSwitch
@@ -302,34 +254,6 @@
                 </LinearLayout>
 
             </com.google.android.material.card.MaterialCardView>
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="16dp"
-                android:background="@drawable/bg_mini_tile"
-                android:orientation="horizontal"
-                android:padding="14dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="i"
-                    android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-                    android:textColor="?attr/colorPrimary" />
-
-                <TextView
-                    android:layout_width="0dp"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="10dp"
-                    android:layout_weight="1"
-                    android:lineSpacingExtra="3dp"
-                    android:text="开启省流量模式后，使用移动网络时会自动按 128k 播放，Wi-Fi 下仍使用所选音质。"
-                    android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
-
-            </LinearLayout>
-
         </LinearLayout>
 
     </androidx.core.widget.NestedScrollView>

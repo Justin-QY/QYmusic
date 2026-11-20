@@ -65,11 +65,6 @@ class SearchSourceFragment :
     syncingSwitch = true
     binding.switchAggregate.isChecked = enabled
     syncingSwitch = false
-    binding.tvAggregateState.text = if (enabled) {
-      "已开启 · 按下方启用的平台并发搜索并合并结果"
-    } else {
-      "默认关闭；只请求你明确勾选的平台"
-    }
   }
 
   // ------------------------------------------------------------------ 平台列表

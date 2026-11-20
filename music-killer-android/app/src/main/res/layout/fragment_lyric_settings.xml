@@ -11,14 +11,6 @@
         android:paddingEnd="20dp"
         android:paddingBottom="32dp">
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:lineSpacingExtra="3dp"
-            android:text="调整歌词页的字号与翻译，修改后立即保存。放大字号只影响歌词显示，不影响播放。"
-            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-            android:textColor="?attr/colorOnSurfaceVariant" />
-
         <!-- 字号 -->
         <TextView
             style="@style/TextAppearance.Material3.LabelLarge"
@@ -209,14 +201,6 @@
                             android:text="显示翻译"
                             android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
 
-                        <TextView
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:text="有翻译时显示在原文下方，切换后重新加载歌词生效"
-                            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                            android:textColor="?attr/colorOnSurfaceVariant" />
-
                     </LinearLayout>
 
                     <com.google.android.material.materialswitch.MaterialSwitch
@@ -270,16 +254,6 @@
                             android:text="澎湃 OS 超级岛歌词"
                             android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
 
-                        <TextView
-                            android:id="@+id/tv_super_island_hint"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:lineSpacingExtra="2dp"
-                            android:text="播放时在超级岛 / 焦点通知里显示当前歌词"
-                            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                            android:textColor="?attr/colorOnSurfaceVariant" />
-
                     </LinearLayout>
 
                     <com.google.android.material.materialswitch.MaterialSwitch
@@ -292,34 +266,6 @@
             </LinearLayout>
 
         </com.google.android.material.card.MaterialCardView>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:background="@drawable/bg_mini_tile"
-            android:orientation="horizontal"
-            android:padding="14dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="i"
-                android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-                android:textColor="?attr/colorPrimary" />
-
-            <TextView
-                android:id="@+id/tv_super_island_note"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:layout_weight="1"
-                android:lineSpacingExtra="3dp"
-                android:text="超级岛依赖 HyperOS 的通知扩展能力：开启后播放时会额外发一条静音的歌词通知。部分系统版本可能只按普通通知显示，或被系统通知权限拦截，此时不影响播放与原有通知。"
-                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                android:textColor="?attr/colorOnSurfaceVariant" />
-
-        </LinearLayout>
 
     </LinearLayout>
 

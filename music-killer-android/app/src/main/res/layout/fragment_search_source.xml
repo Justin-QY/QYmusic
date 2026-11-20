@@ -55,16 +55,6 @@
                         android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
                         android:textSize="19sp" />
 
-                    <TextView
-                        android:id="@+id/tv_aggregate_state"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:lineSpacingExtra="2dp"
-                        android:text="默认关闭；只请求你明确勾选的平台"
-                        android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-                        android:textColor="?attr/colorOnSurfaceVariant" />
-
                 </LinearLayout>
 
                 <com.google.android.material.materialswitch.MaterialSwitch
@@ -97,15 +87,6 @@
                 android:overScrollMode="never" />
 
         </com.google.android.material.card.MaterialCardView>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:lineSpacingExtra="4dp"
-            android:text="点击切换是否参与聚合，长按可拖动排序，至少保留一个平台。"
-            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-            android:textColor="?attr/colorOnSurfaceVariant" />
 
     </LinearLayout>
 

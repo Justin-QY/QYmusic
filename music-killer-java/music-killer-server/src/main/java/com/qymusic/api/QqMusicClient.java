@@ -158,10 +158,50 @@ public class QqMusicClient {
     }
 
     /**
+     * 网页版搜索（c.y.qq.com/soso/fcgi-bin/search_for_qq_cp）。
+     *
+     * <p>不经过 musicu 网关签名，也不会像搜索网关那样频繁返回 2001 + 空列表，
+     * 一次能拿到整页 20 条结果，作为搜索的主链路。</p>
+     *
+     * @return 结构为 {@code {song: {list: [...], totalnum: n}}} 的 data 节点，失败返回 null
+     */
+    public JsonNode searchWeb(String keyword, int page, int size) {
+        try {
+            int safePage = Math.max(1, page);
+            int safeSize = Math.min(50, Math.max(1, size));
+            String url = "https://c.y.qq.com/soso/fcgi-bin/search_for_qq_cp"
+                    + "?w=" + java.net.URLEncoder.encode(keyword == null ? "" : keyword,
+                    java.nio.charset.StandardCharsets.UTF_8)
+                    + "&format=json&n=" + safeSize + "&p=" + safePage
+                    + "&new_json=1&cr=1&t=0&aggr=1&lossless=0&catZhida=1"
+                    + "&remoteplace=txt.yqq.song&platform=yqq.json";
+            Request request = new Request.Builder()
+                    .url(url)
+                    .header("User-Agent", UA)
+                    .header("Referer", "https://y.qq.com/")
+                    .build();
+            try (Response response = CLIENT.newCall(request).execute()) {
+                if (!response.isSuccessful() || response.body() == null) {
+                    return null;
+                }
+                JsonNode root = MAPPER.readTree(response.body().string());
+                if (root.path("code").asInt(-1) != 0) {
+                    log.warn("QQ网页搜索失败 code={} keyword={}",
+                            root.path("code").asInt(), keyword);
+                    return null;
+                }
+                return root.path("data");
+            }
+        } catch (Exception e) {
+            log.warn("QQ网页搜索异常: {}", e.getMessage());
+            return null;
+        }
+    }
+
+    /**
      * 搜索兜底：smartbox 联想接口。musicu 搜索被限流时会返回空列表。
      */
-    public JsonNode smartSearch(String keyword) {
-        try {
+    public JsonNode smartSearch(String keyword) {        try {
             String url = "https://c.y.qq.com/splcloud/fcgi-bin/smartbox_new.fcg?key="
                     + java.net.URLEncoder.encode(keyword == null ? "" : keyword,
                     java.nio.charset.StandardCharsets.UTF_8)

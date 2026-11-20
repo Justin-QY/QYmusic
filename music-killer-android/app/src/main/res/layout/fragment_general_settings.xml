@@ -11,14 +11,6 @@
         android:paddingEnd="20dp"
         android:paddingBottom="32dp">
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:lineSpacingExtra="3dp"
-            android:text="主题、歌词、导航与启动页设置，修改后立即生效。"
-            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-            android:textColor="?attr/colorOnSurfaceVariant" />
-
         <!-- 主题 -->
         <TextView
             style="@style/TextAppearance.Material3.LabelLarge"
@@ -381,34 +373,6 @@
             </LinearLayout>
 
         </com.google.android.material.card.MaterialCardView>
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            android:background="@drawable/bg_mini_tile"
-            android:orientation="horizontal"
-            android:padding="14dp">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="i"
-                android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-                android:textColor="?attr/colorPrimary" />
-
-            <TextView
-                android:id="@+id/tv_general_note"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="10dp"
-                android:layout_weight="1"
-                android:lineSpacingExtra="3dp"
-                android:text="主题切换后界面会自动重建。默认启动页只影响从桌面启动；有新版本时会先查服务器，失败则从 GitHub 下载，必须更新后才能继续使用。"
-                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                android:textColor="?attr/colorOnSurfaceVariant" />
-
-        </LinearLayout>
 
     </LinearLayout>
 

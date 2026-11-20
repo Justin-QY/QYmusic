@@ -92,6 +92,9 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
   /** 当前页面是否是一级模块（首页/云端），子页面不显示底栏 */
   private var currentIsModule = true
 
+  /** 播放页是否已上滑展开：展开后隐藏底部导航，让封面/歌词占满整屏 */
+  private var playerExpanded = false
+
   var _downloadService: DownloadService? = null
 
   private val onBackPressedCallback = object : OnBackPressedCallback(false) {
@@ -249,8 +252,7 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
       mainViewModel.changeBottomBarVisible(destination.shouldShowBottomNav())
       // 只有一级模块显示底部导航，设置/详情等子页面隐藏
       currentIsModule = com.qymusic.app.config.NavModules.find(destination.id) != null
-      binding.bottomNav.visibility =
-        if (bottomNavVisible && currentIsModule) View.VISIBLE else View.GONE
+      syncBottomNavVisibility()
       applyBottomMetrics()
       // 返回到已被隐藏的模块时（例如设置页返回云端），自动切到仍显示的模块
       binding.bottomNav.post { ensureVisibleDestination(controller) }
@@ -309,7 +311,7 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     val visible = com.qymusic.app.config.NavModules.visible()
       .ifEmpty { com.qymusic.app.config.NavModules.ALL }
     bottomNavVisible = visible.size > 1
-    binding.bottomNav.visibility = if (bottomNavVisible) View.VISIBLE else View.GONE
+    syncBottomNavVisibility()
 
     val menu = binding.bottomNav.menu
     menu.clear()
@@ -352,12 +354,13 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
    * 按「导航栏是否显示 + 系统导航条高度 + 迷你播放栏高度」重新计算底部留白。
    *
    * 导航栏隐藏时不再给 56dp 预留，否则内容底部会多出一条空白。
+   * 播放页展开后底部导航也会隐藏，此时同样不再预留。
    */
   private fun applyBottomMetrics() {
     if (!this::bottomBarBehavior.isInitialized) {
       return
     }
-    val navReserve = if (bottomNavVisible && currentIsModule) bottomNavHeight else 0
+    val navReserve = if (bottomNavVisible && currentIsModule && !playerExpanded) bottomNavHeight else 0
     bottomBarBehavior.peekHeight = playerBarHeight + navReserve + navigationBarInset
     binding.bottomBar.updatePadding(bottom = navReserve + navigationBarInset)
     binding.navHostFragment.updateLayoutParams<ViewGroup.MarginLayoutParams> {
@@ -366,6 +369,12 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     binding.navHostFragment.updatePadding(
       bottom = if (bottomBarVisible) playerBarHeight else 0
     )
+  }
+
+  /** 底部导航只在「有多个模块 + 停留在一级页 + 播放页未展开」时显示 */
+  private fun syncBottomNavVisibility() {
+    binding.bottomNav.visibility =
+      if (bottomNavVisible && currentIsModule && !playerExpanded) View.VISIBLE else View.GONE
   }
 
   override fun onClick(v: View) {
@@ -435,6 +444,13 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
         binding.mainPlayer.translationZ = if (offset == 0f) -10f else 10f
         binding.mainPlayer.alpha = offset
         binding.playBar.alpha = 1 - offset
+        // 播放页一上滑就收起底部导航：展开后是封面 / 歌词的整屏视图
+        val expanded = offset > 0.001f
+        if (expanded != playerExpanded) {
+          playerExpanded = expanded
+          syncBottomNavVisibility()
+          applyBottomMetrics()
+        }
       }
 
       override fun onStateChanged(v: View, state: Int) {
@@ -442,6 +458,12 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
         if (state == BottomSheetBehavior.STATE_EXPANDED) {
           // 同步状态给 ViewModel
           mainViewModel.changeBottomBarExpand(true)
+          // 恢复状态时可能没有滑动回调，这里补一次，确保展开后底栏已收起
+          if (!playerExpanded) {
+            playerExpanded = true
+            syncBottomNavVisibility()
+            applyBottomMetrics()
+          }
           // 开启返回监听
           onBackPressedCallback.isEnabled = true
           // 如果当前不是亮色状态栏
@@ -455,6 +477,11 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
         } else if (state == BottomSheetBehavior.STATE_COLLAPSED) {
           mainViewModel.changeBottomBarExpand(false)
           onBackPressedCallback.isEnabled = false
+          if (playerExpanded) {
+            playerExpanded = false
+            syncBottomNavVisibility()
+            applyBottomMetrics()
+          }
           if (isLightStatusBar != windowInsetsController.isAppearanceLightStatusBars) {
             windowInsetsController.isAppearanceLightStatusBars = isLightStatusBar
           }

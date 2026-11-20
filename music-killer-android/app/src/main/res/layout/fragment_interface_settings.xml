@@ -11,14 +11,6 @@
         android:paddingEnd="20dp"
         android:paddingBottom="32dp">
 
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:lineSpacingExtra="3dp"
-            android:text="首页曲库决定浏览内容；曲库搜索决定搜索时可用的平台。"
-            android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
-            android:textColor="?attr/colorOnSurfaceVariant" />
-
         <!-- 首页曲库 -->
         <TextView
             style="@style/TextAppearance.Material3.LabelLarge"
@@ -88,16 +80,6 @@
                         android:textColor="?attr/colorOnSurfaceVariant" />
 
                 </LinearLayout>
-
-                <TextView
-                    android:id="@+id/tv_catalog_hint"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:lineSpacingExtra="3dp"
-                    android:text="切换后首页、榜单、歌单、歌手与搜索一并换源，不影响播放。"
-                    android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                    android:textColor="?attr/colorOnSurfaceVariant" />
 
             </LinearLayout>
 
@@ -185,15 +167,6 @@
             </LinearLayout>
 
         </com.google.android.material.card.MaterialCardView>
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:lineSpacingExtra="4dp"
-            android:text="聚合开启后搜索页不显示平台切换，结果直接合并并标注来源；关掉当前曲库平台时首页曲库会自动切换。"
-            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-            android:textColor="?attr/colorOnSurfaceVariant" />
 
     </LinearLayout>
 

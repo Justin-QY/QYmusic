@@ -64,11 +64,6 @@ class NavManagerFragment :
       item.tvPreviewName.text = row.module.title
       container.addView(item.root)
     }
-    binding.tvPreviewHint.text = if (visible.size <= 1) {
-      "只剩一个模块时整条底栏会自动隐藏，避免占位"
-    } else {
-      "预览按实际底栏顺序排列，共 ${visible.size} 个模块"
-    }
   }
 
   /** 至少保留一个模块可见，改动后重建界面让底栏立即生效 */

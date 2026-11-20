@@ -101,14 +101,6 @@ class LyricSettingsFragment :
     binding.switchLyricTranslation.isChecked = SPConfig.isLyricTranslationEnabled()
     binding.switchSuperIsland.isChecked = SPConfig.isLyricSuperIslandEnabled()
 
-    val supported = SuperIslandHelper.isSupported(requireContext())
-    binding.tvSuperIslandHint.text = when {
-      !supported -> "当前设备不是 HyperOS，开关可以保存，但本机不会出现超级岛"
-      SuperIslandHelper.focusProtocol(requireContext()) >= 3 ->
-        "已检测到 HyperOS 焦点通知，播放时在超级岛显示当前歌词"
-      else -> "播放时在超级岛 / 焦点通知里显示当前歌词"
-    }
-
     syncing = false
   }
 

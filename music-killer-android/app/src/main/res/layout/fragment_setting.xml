@@ -558,17 +558,6 @@
 
                     </LinearLayout>
 
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:lineSpacingExtra="3dp"
-                        android:paddingStart="18dp"
-                        android:paddingEnd="18dp"
-                        android:text="简洁的音乐播放器，支持多平台曲库、歌单、排行榜与无损音质。"
-                        android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                        android:textColor="?attr/colorOnSurfaceVariant" />
-
                     <View
                         android:layout_width="match_parent"
                         android:layout_height="1dp"

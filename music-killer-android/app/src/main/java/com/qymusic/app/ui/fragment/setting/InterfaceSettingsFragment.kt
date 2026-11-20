@@ -49,7 +49,6 @@ class InterfaceSettingsFragment :
   override fun onResume() {
     super.onResume()
     updateCatalogButtons()
-    binding.tvCatalogHint.text = "切换后首页、榜单、歌单、歌手与搜索一并换源，不影响播放。"
     binding.tvSearchSourceState.text =
       "${aggregateSearchLabel()} · ${SPConfig.enabledSearchPlatforms().size} 个平台"
   }

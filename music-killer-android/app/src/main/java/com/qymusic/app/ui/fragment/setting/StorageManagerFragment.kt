@@ -90,12 +90,6 @@ class StorageManagerFragment :
     binding.tvDownloadSize.text = AppStorage.formatSize(value.download)
     binding.tvTempSize.text = AppStorage.formatSize(value.temp)
     binding.tvTotalSize.text = AppStorage.formatSize(value.total)
-    binding.tvTotalHint.text = buildString {
-      append("音频 ").append(AppStorage.formatSize(value.audio))
-      append(" · 图片 ").append(AppStorage.formatSize(value.image))
-      append(" · 下载 ").append(AppStorage.formatSize(value.download))
-      append(" · 临时 ").append(AppStorage.formatSize(value.temp))
-    }
   }
 
   // ------------------------------------------------------------------ 清理

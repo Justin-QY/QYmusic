@@ -46,19 +46,35 @@ public class QqCatalogService {
     // ------------------------------------------------------------------ 搜索
 
     public Result<SearchMusicResultVO> searchMusic(String keyword, int pageNo, int pageSize) {
-        JsonNode data = qqMusicClient.search(keyword, 0, pageNo, pageSize);
-        JsonNode list = data == null ? null : data.path("body").path("song").path("list");
-        SearchMusicResultVO vo = new SearchMusicResultVO();
         List<Music> musics = new ArrayList<>();
-        if (list != null && list.isArray()) {
-            for (JsonNode node : list) {
-                Music music = toMusic(node);
-                if (music != null) {
-                    musics.add(music);
+        long total = 0;
+
+        // 1) 网页搜索：稳定拿到整页结果，musicu 被限流时也不会只剩几条联想词
+        JsonNode web = qqMusicClient.searchWeb(keyword, pageNo, pageSize);
+        if (web != null) {
+            JsonNode song = web.path("song");
+            musics.addAll(collectWebSongs(song.path("list")));
+            total = song.path("totalnum").asLong(0);
+        }
+
+        // 2) musicu 搜索网关（偶发 2001 限流，作为第二级）
+        if (musics.isEmpty()) {
+            JsonNode data = qqMusicClient.search(keyword, 0, pageNo, pageSize);
+            JsonNode list = data == null ? null : data.path("body").path("song").path("list");
+            if (list != null && list.isArray()) {
+                for (JsonNode node : list) {
+                    Music music = toMusic(node);
+                    if (music != null) {
+                        musics.add(music);
+                    }
                 }
             }
+            if (data != null) {
+                total = Math.max(total, data.path("meta").path("sum").asLong(0));
+            }
         }
-        // musicu 搜索被限流时用联想接口兜底（数量较少，但至少能搜到并播放）
+
+        // 3) 联想接口兜底（只有几条，但至少能搜到并播放）
         if (musics.isEmpty()) {
             JsonNode smart = qqMusicClient.smartSearch(keyword);
             if (smart != null && smart.isArray()) {
@@ -70,10 +86,29 @@ public class QqCatalogService {
                 }
             }
         }
+
+        SearchMusicResultVO vo = new SearchMusicResultVO();
         vo.setData(musics);
-        vo.setTotal(data == null ? musics.size() : Math.max(musics.size(),
-                data.path("meta").path("sum").asInt(0)));
+        vo.setTotal((int) Math.min(Integer.MAX_VALUE, Math.max(total, musics.size())));
         return Result.success(vo);
+    }
+
+    /** 网页搜索结果：部分条目是「同曲不同版本」的分组，取第一首 */
+    private List<Music> collectWebSongs(JsonNode list) {
+        List<Music> musics = new ArrayList<>();
+        if (list == null || !list.isArray()) {
+            return musics;
+        }
+        for (JsonNode node : list) {
+            JsonNode song = node.path("songmid").asText("").isBlank()
+                    ? node.path("grp").path(0)
+                    : node;
+            Music music = toMusic(song);
+            if (music != null) {
+                musics.add(music);
+            }
+        }
+        return musics;
     }
 
     public Result<ArtistPageVO> searchArtist(String keyword, int pageNo, int pageSize) {
@@ -362,10 +397,17 @@ public class QqCatalogService {
         music.setSource("qq");
         music.setSourceId(mid);
         music.setId(hash64(mid));
-        music.setName(node.path("name").asText(""));
+        music.setName(node.path("name").asText(node.path("songname").asText("")));
         music.setArtist(joinSingers(node.path("singer")));
-        music.setAlbum(node.path("album").path("name").asText(""));
+        String albumName = node.path("album").path("name").asText("");
+        if (albumName.isBlank()) {
+            albumName = node.path("albumname").asText("");
+        }
+        music.setAlbum(albumName);
         String albumMid = node.path("album").path("mid").asText("");
+        if (albumMid.isBlank()) {
+            albumMid = node.path("albummid").asText("");
+        }
         music.setAlbumId(albumMid.isBlank() ? 0L : hash64(albumMid));
         music.setAlbumPic(albumPic(albumMid));
         music.setPic(albumPic(albumMid));
