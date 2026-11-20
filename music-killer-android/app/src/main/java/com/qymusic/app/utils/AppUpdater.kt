@@ -250,12 +250,14 @@ object AppUpdater {
     }
 
     /**
-     * 有 versionCode 时按 versionCode 比较；没有时按 versionName 比较。
-     * 两者任一更高都视为新版本（满足 GitHub tag 高于当前 versionName 的强制更新要求）。
+     * 有 versionCode 时以 versionCode 为准；没有时才比较 versionName。
+     *
+     * 版本名可能回退（例如 1.3.10 → 1.0.0），只比 versionName 会把旧版本误判为新版本，
+     * 因此 GitHub Release 里写了 versionCode 时，版本名不再参与判断。
      */
     private fun isNewer(model: UpdateModel, currentCode: Long, currentName: String): Boolean {
-        if (model.versionCode > 0L && model.versionCode > currentCode) {
-            return true
+        if (model.versionCode > 0L) {
+            return model.versionCode > currentCode
         }
         return compareVersionName(model.versionName, currentName) > 0
     }
