@@ -48,9 +48,9 @@ object AppUpdater {
     /** GitHub API 强制要求 User-Agent，缺失会直接返回 403 */
     private const val GITHUB_USER_AGENT = "QYMusic-Android"
 
-    /** GitHub 仓库里的备用安装包（发版时覆盖同一个文件） */
+    /** GitHub Release 页面：仓库不再存放 APK，统一从 Release 附件下载 */
     private const val GITHUB_DOWNLOAD_URL =
-        "https://github.com/Justin-QY/QYmusic/raw/master/apk/qy-music-latest.apk"
+        "https://github.com/Justin-QY/QYmusic/releases/latest"
 
     /** 同一进程内避免启动检查和手动检查同时进行 */
     private var checking = false

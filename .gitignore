@@ -21,3 +21,6 @@ deploy/.env
 music-killer-android/keystore.properties
 keystore.properties
 music-killer-android/.idea/
+
+# 仓库不再存放 APK，统一走 GitHub Release
+apk/*.apk
