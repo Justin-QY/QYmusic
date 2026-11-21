@@ -47,6 +47,9 @@ object AppUpdater {
 
     private const val UPDATE_JSON = "/app/update.json"
 
+    /** 固定 GitHub Releases 页面：更新弹窗的「去 GitHub 下载」入口 */
+    private const val GITHUB_RELEASES = "https://github.com/Justin-QY/QYmusic/releases"
+
     /** 同一进程内避免启动检查和手动检查同时进行 */
     private var checking = false
 
@@ -207,6 +210,7 @@ object AppUpdater {
             .setMessage(message)
             .setCancelable(false)
             .setPositiveButton("立即更新", null)
+            .setNeutralButton("去 GitHub 下载", null)
             .create()
         // 强制更新：屏蔽返回键与点击外部，且不提供「稍后」
         dialog.setCancelable(false)
@@ -214,6 +218,18 @@ object AppUpdater {
         dialog.show()
         dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             startDownload(activity, model, dialog)
+        }
+        // 备用入口：直接打开 GitHub Releases，弹窗不关闭，仍可继续「立即更新」
+        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+            openGitHubReleases(activity)
+        }
+    }
+
+    private fun openGitHubReleases(activity: Activity) {
+        try {
+            activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_RELEASES)))
+        } catch (e: Exception) {
+            toast("没有找到可用的浏览器")
         }
     }
 
