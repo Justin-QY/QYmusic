@@ -218,7 +218,7 @@ object SPConfig {
    */
   const val LYRIC_SUPER_ISLAND = "lyric_super_island"
 
-  fun isLyricSuperIslandEnabled(): Boolean = LYRIC_SUPER_ISLAND.getRequired(false)
+  fun isLyricSuperIslandEnabled(): Boolean = LYRIC_SUPER_ISLAND.getRequired(true)
 
   fun setLyricSuperIslandEnabled(enabled: Boolean) {
     LYRIC_SUPER_ISLAND put enabled

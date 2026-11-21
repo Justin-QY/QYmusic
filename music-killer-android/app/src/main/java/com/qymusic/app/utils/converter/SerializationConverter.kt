@@ -52,6 +52,11 @@ class SerializationConverter(
       }
 
       if (envelope == null || !envelope.has(this.code)) {
+        // String 目标原样返回，避免把 GitHub Release 这类 JSON 当字符串解析
+        if (kType.classifier == String::class) {
+          @Suppress("UNCHECKED_CAST")
+          return bodyString as R
+        }
         // 非信封格式（数组 / 纯文本）直接按目标类型解析
         return parseBody<R>(response, bodyString, kType)
       }

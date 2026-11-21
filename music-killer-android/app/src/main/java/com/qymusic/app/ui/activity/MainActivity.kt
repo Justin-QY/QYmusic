@@ -239,6 +239,9 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+    if (android.os.Build.VERSION.SDK_INT >= 36 && checkSelfPermission("android.permission.POST_PROMOTED_NOTIFICATIONS") != android.content.pm.PackageManager.PERMISSION_GRANTED) {
+      requestPermissions(arrayOf("android.permission.POST_PROMOTED_NOTIFICATIONS"), 1002)
+    }
     WindowCompat.setDecorFitsSystemWindows(window, false)
 
     val navHostFragment = supportFragmentManager
