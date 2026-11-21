@@ -187,6 +187,7 @@ app:
 - [LX Music 落雪音乐](https://github.com/lyswhut/lx-music-desktop)：音源脚本运行机制与脚本生态
 - [ChKSz API](https://api.chksz.com)：可选第三方音乐解析接口
 - [drakeet / drake 系列](https://github.com/liangjingkanji)：Net、BRV、Tooltip、Engine
+- 感谢Qplayer提供的登陆插件思路
 - AndroidX、Media3、Material Components、Glide、LitePal、KotlinX Serialization
 
 感谢以上项目的作者与贡献者。相关代码遵循其原始开源许可（Apache-2.0），详见仓库 `LICENSE`。
