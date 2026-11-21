@@ -127,6 +127,11 @@ class MusicPlayFragment :
         }
       }
     }
+    // 同步播放状态 / 循环模式 / 进度：从后台回来或 Activity 重建后，
+    // 底部播放控件不该因为 ViewModel 状态丢失而消失或显示成暂停。
+    mainViewModel.updateIsPlaying(controller.isPlaying)
+    mainViewModel.updateRepeatMode(controller.repeatMode)
+    mainViewModel.updateCurrentPosition(controller.currentPosition)
 
     lifecycleScope.launch {
       // 播放循环模式修改

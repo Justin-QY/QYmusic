@@ -241,6 +241,15 @@ object SPConfig {
    * 默认启动页：保存 NavModules 的稳定 key（home / cloud），默认首页。
    * 实际跳转时由 NavModules.startPage() 过滤被隐藏的模块。
    */
+  /** 是否已经提示过后台保活设置 */
+  const val KEEP_ALIVE_PROMPTED = "keep_alive_prompted"
+
+  fun isKeepAlivePrompted(): Boolean = KEEP_ALIVE_PROMPTED.getRequired(false)
+
+  fun setKeepAlivePrompted(prompted: Boolean) {
+    KEEP_ALIVE_PROMPTED put prompted
+  }
+
   const val START_PAGE = "start_page"
 
   const val START_PAGE_DEFAULT = "home"

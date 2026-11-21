@@ -26,6 +26,7 @@ import com.qymusic.app.R
 import com.qymusic.app.base.BaseMusicNavFragment
 import com.qymusic.app.databinding.FragmentSearchMusicBinding
 import com.qymusic.app.model.search.SearchHistory
+import com.qymusic.app.utils.UiStateStore
 import com.qymusic.app.utils.removeAllItemDecorator
 
 /**
@@ -115,6 +116,21 @@ class SearchMusicFragment :
 
       R.id.item_suggest.onClick { submit(getModel()) }
     }
+
+    // 进程仍在、Activity 被销毁后重建：恢复搜索词与分类页
+    UiStateStore.text("search_keyword")?.takeIf { it.isNotBlank() }?.let { keyword ->
+      if (binding.editKey.text.isNullOrEmpty()) {
+        binding.editKey.setText(keyword)
+        binding.editKey.setSelection(keyword.length)
+      }
+    }
+    vp.setCurrentItem(UiStateStore.searchViewPagerPage.coerceIn(0, fragments.lastIndex), false)
+  }
+
+  override fun onPause() {
+    UiStateStore.saveText("search_keyword", binding.editKey.text?.toString().orEmpty())
+    UiStateStore.searchViewPagerPage = binding.vp.currentItem
+    super.onPause()
   }
 
   /** 提交搜索 */

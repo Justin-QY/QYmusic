@@ -32,11 +32,14 @@
         <com.google.android.material.bottomnavigation.BottomNavigationView
             android:id="@+id/bottom_nav"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
+            android:layout_height="52dp"
             android:layout_gravity="bottom"
             android:background="?attr/colorSurface"
             android:elevation="0dp"
+            app:itemIconSize="22dp"
             app:itemIconTint="?attr/colorOnSurfaceVariant"
+            app:itemPaddingBottom="4dp"
+            app:itemPaddingTop="4dp"
             app:itemTextColor="?attr/colorOnSurfaceVariant"
             app:labelVisibilityMode="labeled"
             app:menu="@menu/menu_bottom_nav" />

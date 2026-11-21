@@ -32,6 +32,18 @@ object DatabaseMigration {
       // 打开数据库；LitePal 会在这里完成建表与版本升级
       val db = LitePal.getDatabase()
 
+      // 1.0.10 新增收藏歌单 / 歌手表：即使用户数据库版本号未同步升级，也保证表存在
+      db.execSQL(
+        "CREATE TABLE IF NOT EXISTS favoriteplaylistmodel (" +
+          "id INTEGER PRIMARY KEY AUTOINCREMENT, playlistId INTEGER, name TEXT, " +
+          "cover TEXT, author TEXT, \"desc\" TEXT, source TEXT, createAt INTEGER)"
+      )
+      db.execSQL(
+        "CREATE TABLE IF NOT EXISTS favoriteartistmodel (" +
+          "id INTEGER PRIMARY KEY AUTOINCREMENT, artistId INTEGER, name TEXT, " +
+          "cover TEXT, source TEXT, createAt INTEGER)"
+      )
+
       val columns = mutableSetOf<String>()
       db.rawQuery("PRAGMA table_info($FAVORITE_TABLE)", null).use { cursor ->
         val nameIndex = cursor.getColumnIndex("name")

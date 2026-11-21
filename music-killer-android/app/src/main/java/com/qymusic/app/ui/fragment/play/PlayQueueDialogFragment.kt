@@ -1,16 +1,10 @@
 package com.qymusic.app.ui.fragment.play
 
-import android.content.BroadcastReceiver
 import android.content.ComponentName
-import android.content.Context
-import android.content.Intent
-import android.content.IntentFilter
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import androidx.core.content.ContextCompat
-import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.Player
@@ -31,12 +25,9 @@ import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.common.util.concurrent.MoreExecutors
 import kotlinx.coroutines.launch
 import com.qymusic.app.R
-import com.qymusic.app.constants.IntentActions
-import com.qymusic.app.constants.IntentExtras
 import com.qymusic.app.databinding.FragmentPlayQueueBinding
 import com.qymusic.app.model.MusicModel
 import com.qymusic.app.service.MusicService
-import com.qymusic.app.ui.activity.MainViewModel
 import com.qymusic.app.utils.getMusicInfo
 
 /**
@@ -53,10 +44,6 @@ class PlayQueueDialogFragment : EngineBottomSheetDialogFragment<FragmentPlayQueu
   Player.Listener {
 
   private lateinit var mediaController: MediaController
-
-  private val mainViewModel by activityViewModels<MainViewModel>()
-
-  private lateinit var musicReceiver: MusicBroadReceiver
 
   private lateinit var touchHelper: ItemTouchHelper
 
@@ -125,31 +112,15 @@ class PlayQueueDialogFragment : EngineBottomSheetDialogFragment<FragmentPlayQueu
         }
         mediaController.seekToDefaultPosition(modelPosition)
       }
-
-      R.id.btn_favorite.onClick {
-        mainViewModel.addOrRemoveFavorite(getModel())
-      }
-
-      R.id.btn_delete.onClick {
-        removeAt(modelPosition)
-      }
     }.apply {
       singleMode = true
     }
 
     attachTouchHelper()
-
-    musicReceiver = MusicBroadReceiver()
-    ContextCompat.registerReceiver(
-      requireContext(),
-      musicReceiver,
-      IntentFilter(IntentActions.FAVORITE),
-      ContextCompat.RECEIVER_NOT_EXPORTED
-    )
   }
 
   /** 从 MediaController 重新读取队列，用于首次进入 */
-  private suspend fun reloadQueue(scrollToCurrent: Boolean) {
+  private fun reloadQueue(scrollToCurrent: Boolean) {
     if (!::mediaController.isInitialized) {
       return
     }
@@ -158,7 +129,6 @@ class PlayQueueDialogFragment : EngineBottomSheetDialogFragment<FragmentPlayQueu
       val mediaItem = mediaController.getMediaItemAt(i)
       val musicModel = mediaItem.mediaMetadata.getMusicInfo() ?: MusicModel(name = "未知音乐")
       musicModel.isSelected = false
-      musicModel.isFavorite = mainViewModel.isFavoriteMusic(musicModel)
       list.add(musicModel)
     }
     binding.playListRv.models = list
@@ -296,31 +266,5 @@ class PlayQueueDialogFragment : EngineBottomSheetDialogFragment<FragmentPlayQueu
     super.onDestroyView()
     if (::mediaController.isInitialized)
       mediaController.removeListener(this)
-
-    if (::musicReceiver.isInitialized)
-      requireContext().unregisterReceiver(musicReceiver)
-  }
-
-  private inner class MusicBroadReceiver : BroadcastReceiver() {
-
-    @Suppress("UNCHECKED_CAST")
-    override fun onReceive(context: Context, intent: Intent) {
-      when (intent.action) {
-        IntentActions.FAVORITE -> {
-          val musicId = intent.getLongExtra(IntentExtras.MUSIC_ID, -1L)
-          val isFavorite = intent.getBooleanExtra(IntentExtras.FAVORITE, false)
-          if (!::mediaController.isInitialized) {
-            return
-          }
-          val models = queueModels()
-          models.forEach {
-            if (it.id == musicId) {
-              it.isFavorite = isFavorite
-              return@forEach
-            }
-          }
-        }
-      }
-    }
   }
 }

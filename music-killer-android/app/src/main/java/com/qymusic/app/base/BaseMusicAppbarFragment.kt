@@ -7,9 +7,11 @@ import android.view.View
 import android.view.View.OnClickListener
 import android.view.ViewGroup
 import androidx.annotation.LayoutRes
+import androidx.core.widget.NestedScrollView
 import androidx.databinding.DataBindingUtil
 import androidx.databinding.ViewDataBinding
 import com.qymusic.app.R
+import com.qymusic.app.utils.UiStateStore
 import com.qymusic.app.databinding.FragmentBaseBinding
 import com.qymusic.app.databinding.LayoutScrollviewBinding
 import kotlin.math.abs
@@ -41,6 +43,38 @@ abstract class BaseMusicAppbarFragment<V : ViewDataBinding>(@LayoutRes contentLa
   }
 
   override fun onClick(v: View) {}
+
+  override fun onPause() {
+    nestedScrollView()?.let {
+      UiStateStore.saveScroll("scroll:${javaClass.simpleName}", it.scrollY)
+    }
+    super.onPause()
+  }
+
+  override fun onResume() {
+    super.onResume()
+    val scrollY = UiStateStore.scroll("scroll:${javaClass.simpleName}") ?: return
+    view?.post { nestedScrollView()?.scrollTo(0, scrollY) }
+  }
+
+  private fun nestedScrollView(): NestedScrollView? {
+    if (!::baseContentBinding.isInitialized) {
+      return null
+    }
+    return findNestedScrollView(baseContentBinding.root)
+  }
+
+  private fun findNestedScrollView(view: View): NestedScrollView? {
+    if (view is NestedScrollView) {
+      return view
+    }
+    if (view is android.view.ViewGroup) {
+      for (index in 0 until view.childCount) {
+        findNestedScrollView(view.getChildAt(index))?.let { return it }
+      }
+    }
+    return null
+  }
 
   fun setTitle(title: CharSequence) {
     if (::baseContentBinding.isInitialized)

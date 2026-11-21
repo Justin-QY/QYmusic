@@ -8,8 +8,12 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
+import android.os.PowerManager
+import android.provider.Settings
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
@@ -56,6 +60,7 @@ import com.qymusic.app.model.UpdateModel
 import com.qymusic.app.ui.fragment.play.LyricsFragment
 import com.qymusic.app.ui.fragment.play.MusicPlayFragment
 import com.qymusic.app.utils.AppUpdater
+import com.qymusic.app.utils.UiStateStore
 import com.qymusic.app.utils.fixNestedScroll
 import com.qymusic.app.utils.json
 import java.io.File
@@ -79,7 +84,7 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
   private var playerBarHeight = 72.dp
 
   /** 底部导航栏高度（首页 / 云端） */
-  private val bottomNavHeight = 56.dp
+  private val bottomNavHeight = 52.dp
 
   private var navigationBarInset = 0
 
@@ -134,6 +139,7 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     }
 
     requestRuntimePermissions()
+    promptKeepAlive()
     scheduleUpdateCheck()
   }
 
@@ -229,8 +235,93 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     }
   }
 
-  private fun scheduleUpdateCheck() {
-    // 启动后尽快检查更新：服务端下发最低版本时会弹出不可取消的强制更新弹窗
+  /**
+   * 后台保活提示：切到后台被系统清理后，重新进入会重新加载页面、播放控件也会丢失。
+   * 这里引导用户关闭电池优化，并提供小米/澎湃 OS 的自启动入口。
+   */
+  private fun promptKeepAlive() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || SPConfig.isKeepAlivePrompted()) {
+      return
+    }
+    val powerManager = getSystemService(PowerManager::class.java) ?: return
+    if (powerManager.isIgnoringBatteryOptimizations(packageName)) {
+      return
+    }
+    SPConfig.setKeepAlivePrompted(true)
+    MaterialAlertDialogBuilder(this)
+      .setTitle("保持后台运行")
+      .setMessage(
+        "切到后台后如果被系统清理，回到 App 时页面会重新加载，底部播放控件也会消失。\n\n" +
+          "建议允许「忽略电池优化」，并在系统设置里把省电策略设为「无限制」、允许自启动。"
+      )
+      .setPositiveButton("去设置") { _, _ -> requestIgnoreBatteryOptimizations() }
+      .setNeutralButton("自启动设置") { _, _ -> openAutoStartSettings() }
+      .setNegativeButton("暂不", null)
+      .show()
+  }
+
+  private fun requestIgnoreBatteryOptimizations() {
+    val intent = Intent(
+      Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
+      Uri.parse("package:$packageName"),
+    )
+    runCatching { startActivity(intent) }.onFailure { openAppSettings() }
+  }
+
+  /** 小米 / 澎湃 OS 的自启动管理页，非小米设备回落到应用详情 */
+  private fun openAutoStartSettings() {
+    val intent = Intent().apply {
+      component = ComponentName(
+        "com.miui.securitycenter",
+        "com.miui.permcenter.autostart.AutoStartManagementActivity",
+      )
+    }
+    runCatching { startActivity(intent) }.onFailure { openAppSettings() }
+  }
+
+  private fun openAppSettings() {
+    runCatching {
+      startActivity(
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
+      )
+    }
+  }
+
+  /**
+   * 进程仍存活时的界面恢复。
+   *
+   * 系统销毁 Activity 后重建，NavController 只有冷启动分支不会自动回到原页面；
+   * 这里只恢复无必填参数的页面，避免歌单详情等页面缺参数时崩溃。
+   */
+  private fun restoreUiState(
+    navController: androidx.navigation.NavController,
+    savedInstanceState: Bundle?
+  ) {
+    if (savedInstanceState != null) {
+      return
+    }
+    val target = UiStateStore.lastNavDestination
+    if (target == 0) {
+      return
+    }
+    if (navController.currentDestination?.id == target) {
+      return
+    }
+    val destination = runCatching { navController.graph.findNode(target) }.getOrNull() ?: return
+    val hasRequiredArgs = destination.arguments.values.any { !it.isNullable && it.defaultValue == null }
+    if (hasRequiredArgs) {
+      return
+    }
+    runCatching {
+      val options = androidx.navigation.NavOptions.Builder()
+        .setPopUpTo(navController.graph.startDestinationId, true)
+        .setLaunchSingleTop(true)
+        .build()
+      navController.navigate(target, null, options)
+    }
+  }
+
+  private fun scheduleUpdateCheck() {    // 启动后尽快检查更新：服务端下发最低版本时会弹出不可取消的强制更新弹窗
     lifecycleScope.launch {
       delay(600)
       AppUpdater.checkOnStart(this@MainActivity)
@@ -252,6 +343,7 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     windowInsetsController = WindowCompat.getInsetsController(window, binding.root)
 
     navController.addOnDestinationChangedListener { controller, destination, arguments ->
+      UiStateStore.lastNavDestination = destination.id
       mainViewModel.changeBottomBarVisible(destination.shouldShowBottomNav())
       // 只有一级模块显示底部导航，设置/详情等子页面隐藏
       currentIsModule = com.qymusic.app.config.NavModules.find(destination.id) != null
@@ -266,6 +358,8 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
 
     // 通用设置里的「默认启动页」：冷启动完成后跳到目标模块
     applyDefaultStartPage(navController, savedInstanceState)
+    // 进程仍存活、只是 Activity 被系统销毁时：恢复上次页面，不重新加载
+    restoreUiState(navController, savedInstanceState)
   }
 
   /**
@@ -363,7 +457,7 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     if (!this::bottomBarBehavior.isInitialized) {
       return
     }
-    val navReserve = if (bottomNavVisible && currentIsModule && !playerExpanded) bottomNavHeight else 0
+    val navReserve = if (bottomNavVisible && currentIsModule) bottomNavHeight else 0
     bottomBarBehavior.peekHeight = playerBarHeight + navReserve + navigationBarInset
     binding.bottomBar.updatePadding(bottom = navReserve + navigationBarInset)
     binding.navHostFragment.updateLayoutParams<ViewGroup.MarginLayoutParams> {
@@ -376,8 +470,27 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
 
   /** 底部导航只在「有多个模块 + 停留在一级页 + 播放页未展开」时显示 */
   private fun syncBottomNavVisibility() {
-    binding.bottomNav.visibility =
-      if (bottomNavVisible && currentIsModule && !playerExpanded) View.VISIBLE else View.GONE
+    val visible = bottomNavVisible && currentIsModule && !playerExpanded
+    binding.bottomNav.animate().cancel()
+    if (visible) {
+      binding.bottomNav.visibility = View.VISIBLE
+      binding.bottomNav.animate()
+        .alpha(1f)
+        .translationY(0f)
+        .setDuration(160)
+        .start()
+    } else {
+      binding.bottomNav.animate()
+        .alpha(0f)
+        .translationY(binding.bottomNav.height.toFloat())
+        .setDuration(160)
+        .withEndAction {
+          if (!bottomNavVisible || !currentIsModule || playerExpanded) {
+            binding.bottomNav.visibility = View.INVISIBLE
+          }
+        }
+        .start()
+    }
   }
 
   override fun onClick(v: View) {
@@ -418,6 +531,9 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
       tab.text = titles[position]
     }.attach()
 
+    // Activity 重建后回到上次的「歌曲 / 歌词」页
+    vpMusic.setCurrentItem(UiStateStore.mainViewPagerPage.coerceIn(0, 1), false)
+
     val bottomBar = binding.bottomBar
     bottomBarBehavior = BottomSheetBehavior.from(bottomBar)
     // 播放栏要盖在底部导航之上，否则导航会压住播放控件
@@ -447,13 +563,8 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
         binding.mainPlayer.translationZ = if (offset == 0f) -10f else 10f
         binding.mainPlayer.alpha = offset
         binding.playBar.alpha = 1 - offset
-        // 播放页一上滑就收起底部导航：展开后是封面 / 歌词的整屏视图
-        val expanded = offset > 0.001f
-        if (expanded != playerExpanded) {
-          playerExpanded = expanded
-          syncBottomNavVisibility()
-          applyBottomMetrics()
-        }
+        // 拖动过程中不改布局（peek/margin/导航可见性），只在真正展开 / 折叠后切换，
+        // 否则歌词页展开再收起时内容会跟着重新测量，看起来像页面在跳动。
       }
 
       override fun onStateChanged(v: View, state: Int) {
@@ -493,6 +604,13 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     })
   }
 
+  override fun onPause() {
+    UiStateStore.mainViewPagerPage = binding.vpMusic.currentItem
+    UiStateStore.mainBottomBarExpanded =
+      bottomBarBehavior.state == BottomSheetBehavior.STATE_EXPANDED
+    super.onPause()
+  }
+
   override fun initData() {
     binding.m = mainViewModel
     binding.lifecycleOwner = this
@@ -530,6 +648,15 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
           )
         }
       }
+    }
+
+    // 从后台 / Activity 重建回来时，恢复播放面板展开状态
+    if (UiStateStore.mainBottomBarExpanded) {
+      binding.root.postDelayed({
+        if (!isFinishing && !isDestroyed) {
+          mainViewModel.changeBottomBarExpand(true)
+        }
+      }, 600)
     }
   }
 

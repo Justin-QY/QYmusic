@@ -1,15 +1,18 @@
 package com.qymusic.app.ui.fragment.artist
 
+import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.navArgs
 import com.drake.engine.adapter.FragmentAdapter
-import com.drake.engine.base.app
+import com.drake.tooltip.toast
 import com.google.android.material.tabs.TabLayoutMediator
+import kotlinx.coroutines.launch
 import com.qymusic.app.R
 import com.qymusic.app.base.BaseMusicNavFragment
 import com.qymusic.app.databinding.FragmentArtistInfoBinding
+import com.qymusic.app.utils.FavoriteRepository
 import kotlin.math.abs
 
-class ArtistInfoFragment: BaseMusicNavFragment<FragmentArtistInfoBinding>(R.layout.fragment_artist_info) {
+class ArtistInfoFragment : BaseMusicNavFragment<FragmentArtistInfoBinding>(R.layout.fragment_artist_info) {
 
   val args by navArgs<ArtistInfoFragmentArgs>()
 
@@ -36,10 +39,49 @@ class ArtistInfoFragment: BaseMusicNavFragment<FragmentArtistInfoBinding>(R.layo
         }
       }
     }
+
+    setupFavoriteMenu()
   }
 
   override fun initData() {
     binding.m = args.artist
     binding.lifecycleOwner = this
+  }
+
+  override fun onResume() {
+    super.onResume()
+    refreshFavoriteState()
+  }
+
+  // ------------------------------------------------------------------ 收藏歌手
+
+  private fun setupFavoriteMenu() {
+    binding.toolbar.inflateMenu(R.menu.menu_artist_favorite)
+    binding.toolbar.setOnMenuItemClickListener { item ->
+      if (item.itemId != R.id.action_artist_favorite) {
+        return@setOnMenuItemClickListener false
+      }
+      viewLifecycleOwner.lifecycleScope.launch {
+        val favorite = FavoriteRepository.toggleArtist(args.artist)
+        applyFavoriteState(favorite)
+        toast(if (favorite) "已收藏歌手" else "已取消收藏")
+      }
+      true
+    }
+  }
+
+  private fun refreshFavoriteState() {
+    viewLifecycleOwner.lifecycleScope.launch {
+      applyFavoriteState(FavoriteRepository.isArtistFavorite(args.artist.id))
+    }
+  }
+
+  private fun applyFavoriteState(favorite: Boolean) {
+    binding.toolbar.menu.findItem(R.id.action_artist_favorite)?.apply {
+      setIcon(
+        if (favorite) R.drawable.baseline_favorite_24 else R.drawable.baseline_favorite_border_24
+      )
+      title = if (favorite) "取消收藏" else "收藏歌手"
+    }
   }
 }

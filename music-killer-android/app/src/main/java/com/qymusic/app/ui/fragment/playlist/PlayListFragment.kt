@@ -24,6 +24,8 @@ import com.qymusic.app.model.PlayListModel
 import com.qymusic.app.model.PlayListTagModel
 import com.qymusic.app.model.QueryPlayListParams
 import com.qymusic.app.ui.fragment.HomeFragmentDirections
+import com.qymusic.app.utils.UiStateStore
+import com.qymusic.app.utils.preserveScrollState
 import com.qymusic.app.utils.query
 import com.qymusic.app.utils.removeAllItemDecorator
 
@@ -34,7 +36,7 @@ class PlayListFragment : BaseMusicNavFragment<FragmentPlaylistBinding>(R.layout.
 
   private val viewModel by viewModels<PlayListViewModel>()
 
-  private var currentOrder = "new"
+  private var currentOrder = UiStateStore.playlistOrder
 
   override fun onFirstResume() {
     super.onFirstResume()
@@ -46,6 +48,7 @@ class PlayListFragment : BaseMusicNavFragment<FragmentPlaylistBinding>(R.layout.
   }
 
   override fun initData() {
+    viewModel.updateTagPositionState(UiStateStore.playlistCategoryPosition)
     val models = viewModel.playlistPageStateFlow.value
 
     if (models.isNotEmpty()) {
@@ -113,8 +116,11 @@ class PlayListFragment : BaseMusicNavFragment<FragmentPlaylistBinding>(R.layout.
       }
     }
 
+    binding.rvPlaylist.preserveScrollState("playlist_list")
+
     binding.tabPlaylistCate.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
       override fun onTabSelected(tab: TabLayout.Tab) {
+        UiStateStore.playlistCategoryPosition = tab.position
         viewModel.updateTagPositionState(tab.position)
       }
 
@@ -135,6 +141,7 @@ class PlayListFragment : BaseMusicNavFragment<FragmentPlaylistBinding>(R.layout.
           return
         }
         currentOrder = order
+        UiStateStore.playlistOrder = order
         binding.refresh.refresh()
       }
 
