@@ -64,7 +64,7 @@ object AppUpdater {
      * 手动检查更新：忽略节流，失败/已最新都会给提示。
      */
     fun check(activity: AppCompatActivity, manual: Boolean = false) {
-        startCheck(activity, manual = manual, startup = false)
+        startCheck(activity, manual = manual)
     }
 
     /**
@@ -74,10 +74,10 @@ object AppUpdater {
      * 「重试 / 退出应用」弹窗，避免网络异常时直接进入主界面。</p>
      */
     fun checkOnStart(activity: AppCompatActivity) {
-        startCheck(activity, manual = false, startup = true)
+        startCheck(activity, manual = false)
     }
 
-    private fun startCheck(activity: AppCompatActivity, manual: Boolean, startup: Boolean) {
+    private fun startCheck(activity: AppCompatActivity, manual: Boolean) {
         if (checking || activity.isFinishing || activity.isDestroyed) {
             return
         }
@@ -86,12 +86,13 @@ object AppUpdater {
             try {
                 when (val result = resolve()) {
                     is CheckResult.Update -> showUpdateDialog(activity, result.model)
-                    is CheckResult.Failed -> showCheckFailedDialog(
-                        activity = activity,
-                        detail = result.detail,
-                        startup = startup,
-                    ) {
-                        startCheck(activity, manual, startup)
+                    is CheckResult.Failed -> if (manual) {
+                        showCheckFailedDialog(
+                            activity = activity,
+                            detail = result.detail,
+                        ) {
+                            startCheck(activity, manual)
+                        }
                     }
 
                     else -> if (manual) {
@@ -101,13 +102,14 @@ object AppUpdater {
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                // 兜底：任何未预期的异常也必须提示，不能静默放行
-                showCheckFailedDialog(
-                    activity = activity,
-                    detail = e.friendlyMessage(),
-                    startup = startup,
-                ) {
-                    startCheck(activity, manual, startup)
+                // 启动检查失败保持静默，手动检查才提示
+                if (manual) {
+                    showCheckFailedDialog(
+                        activity = activity,
+                        detail = e.friendlyMessage(),
+                    ) {
+                        startCheck(activity, manual)
+                    }
                 }
             } finally {
                 checking = false
@@ -132,7 +134,8 @@ object AppUpdater {
         val model = server.getOrNull()
             ?: return CheckResult.Failed(server.exceptionOrNull()?.friendlyMessage() ?: "网络异常")
 
-        if (model.minVersionCode > currentCode || isNewer(model, currentCode, currentName)) {
+        // 只按版本号判断，minVersionCode 不再强制更新
+        if (isNewer(model, currentCode, currentName)) {
             return CheckResult.Update(model)
         }
         return CheckResult.Latest
@@ -191,7 +194,7 @@ object AppUpdater {
             return
         }
         val message = buildString {
-            append("发现新版本，必须更新后才能继续使用。\n\n")
+            append("发现新版本，可以现在更新，也可以稍后再说。\n\n")
             if (model.versionName.isNotBlank()) {
                 append("最新版本：").append(model.versionName).append('\n')
             }
@@ -206,15 +209,12 @@ object AppUpdater {
         }
 
         val dialog = MaterialAlertDialogBuilder(activity)
-            .setTitle("请更新到 ${model.versionName.ifBlank { "最新版本" }}")
+            .setTitle("发现新版本 ${model.versionName.ifBlank { "" }}".trim())
             .setMessage(message)
-            .setCancelable(false)
             .setPositiveButton("立即更新", null)
+            .setNegativeButton("稍后", null)
             .setNeutralButton("去 GitHub 下载", null)
             .create()
-        // 强制更新：屏蔽返回键与点击外部，且不提供「稍后」
-        dialog.setCancelable(false)
-        dialog.setCanceledOnTouchOutside(false)
         dialog.show()
         dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             startDownload(activity, model, dialog)
@@ -242,7 +242,6 @@ object AppUpdater {
     private fun showCheckFailedDialog(
         activity: AppCompatActivity,
         detail: String,
-        startup: Boolean,
         retry: () -> Unit,
     ) {
         if (activity.isFinishing || activity.isDestroyed) {
@@ -251,18 +250,9 @@ object AppUpdater {
         val builder = MaterialAlertDialogBuilder(activity)
             .setTitle("检查更新失败")
             .setMessage("检查更新失败，请检查网络后重试。\n\n${detail.ifBlank { "网络异常" }}")
-            .setCancelable(!startup)
             .setPositiveButton("重试", null)
-        if (startup) {
-            builder.setNegativeButton("退出应用") { _, _ -> exitApp(activity) }
-        } else {
-            builder.setNegativeButton("取消", null)
-        }
+            .setNegativeButton("取消", null)
         val dialog = builder.create()
-        if (startup) {
-            dialog.setCancelable(false)
-            dialog.setCanceledOnTouchOutside(false)
-        }
         dialog.show()
         dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
             dialog.dismiss()

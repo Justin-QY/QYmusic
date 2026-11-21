@@ -1,7 +1,9 @@
 package com.qymusic.app.ui.fragment.favorite
 
 import android.os.Bundle
+import android.view.LayoutInflater
 import android.view.View
+import android.view.ViewGroup
 import androidx.core.os.bundleOf
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
@@ -21,7 +23,23 @@ import com.qymusic.app.utils.preserveScrollState
  */
 class FavoritePlaylistsFragment : Fragment(R.layout.fragment_favorite_playlists) {
 
-  private val binding get() = FragmentFavoritePlaylistsBinding.bind(requireView())
+  private var _binding: FragmentFavoritePlaylistsBinding? = null
+
+  private val binding get() = _binding!!
+
+  override fun onCreateView(
+    inflater: LayoutInflater,
+    container: ViewGroup?,
+    savedInstanceState: Bundle?,
+  ): View {
+    _binding = FragmentFavoritePlaylistsBinding.inflate(inflater, container, false)
+    return binding.root
+  }
+
+  override fun onDestroyView() {
+    super.onDestroyView()
+    _binding = null
+  }
 
   override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
     super.onViewCreated(view, savedInstanceState)

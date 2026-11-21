@@ -84,7 +84,7 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
   private var playerBarHeight = 72.dp
 
   /** 底部导航栏高度（首页 / 云端） */
-  private val bottomNavHeight = 52.dp
+  private var bottomNavHeight = 56.dp
 
   private var navigationBarInset = 0
 
@@ -542,6 +542,14 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     binding.playBar.post {
       if (binding.playBar.height > 0) {
         playerBarHeight = binding.playBar.height
+        applyBottomMetrics()
+      }
+    }
+    // 底部导航高度按实际测量值计算，避免预留高度小于真实高度时被播放栏遮住图标/文字
+    binding.bottomNav.post {
+      val contentHeight = binding.bottomNav.height - binding.bottomNav.paddingBottom
+      if (contentHeight > 0) {
+        bottomNavHeight = contentHeight
         applyBottomMetrics()
       }
     }

@@ -1,19 +1,30 @@
 package com.qymusic.app.ui.fragment.setting
 
+import android.net.Uri
+import android.provider.OpenableColumns
+import android.view.View
+import android.widget.EditText
+import android.widget.FrameLayout
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.lifecycle.lifecycleScope
 import com.drake.net.Get
 import com.drake.net.Post
 import com.drake.net.utils.scopeNet
 import com.drake.tooltip.toast
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import org.json.JSONObject
 import com.qymusic.app.R
 import com.qymusic.app.base.BaseMusicAppbarFragment
 import com.qymusic.app.config.Api
 import com.qymusic.app.config.SPConfig
 import com.qymusic.app.databinding.FragmentSourceBinding
+import com.qymusic.app.databinding.ItemLocalScriptBinding
 import com.qymusic.app.databinding.ItemScriptNameBinding
 import com.qymusic.app.model.LxScriptModel
+import com.qymusic.app.utils.LxLocalScriptStore
 
 /**
  * 播放音源设置（对应设计稿第三页）
@@ -23,11 +34,21 @@ class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.f
     private var loadingScripts = false
     private var syncingSwitch = false
 
+    /** 选择本地落雪脚本文件（只读取内容，不联网、不上传） */
+    private val pickScriptFile =
+        registerForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+            if (uri != null) {
+                importFromUri(uri)
+            }
+        }
+
     override fun initView() {
         binding.itemChksz.setOnClickListener { showKeyDialog() }
         binding.btnEditKey.setOnClickListener { showKeyDialog() }
         binding.btnRefresh.setOnClickListener { refreshSources() }
         binding.btnTestThirdParty.setOnClickListener { testThirdParty() }
+
+        binding.btnImportLocal.setOnClickListener { showImportChooser() }
 
         binding.switchThirdParty.setOnCheckedChangeListener { _, checked ->
             if (syncingSwitch) {
@@ -52,11 +73,13 @@ class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.f
     override fun onResume() {
         super.onResume()
         updateThirdPartyStatus()
+        refreshLocalScripts()
     }
 
     override fun onFirstResume() {
         super.onFirstResume()
         loadScripts(showToast = false)
+        refreshLocalScripts()
     }
 
     // ------------------------------------------------------------------ 第三方音源
@@ -188,5 +211,130 @@ class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.f
             toast("音源已刷新")
             loadScripts(showToast = false)
         }
+    }
+
+    // ------------------------------------------------------------------ 本地脚本（仅本机）
+
+    private fun showImportChooser() {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("导入本地脚本")
+            .setItems(arrayOf("从文件选择", "粘贴脚本文本")) { _, which ->
+                if (which == 0) {
+                    runCatching { pickScriptFile.launch(arrayOf("*/*")) }
+                        .onFailure { toast("无法打开文件选择器") }
+                } else {
+                    showPasteDialog()
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun importFromUri(uri: Uri) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val result = runCatching {
+                val name = queryDisplayName(uri) ?: "custom_${System.currentTimeMillis()}.js"
+                val code = withContext(Dispatchers.IO) {
+                    requireContext().contentResolver.openInputStream(uri)
+                        ?.bufferedReader()
+                        ?.use { it.readText() }
+                        ?: error("无法读取文件")
+                }
+                withContext(Dispatchers.IO) {
+                    LxLocalScriptStore.import(requireContext(), name, code).getOrThrow()
+                }
+            }
+            result.onSuccess {
+                toast("已导入：${it.title}")
+                refreshLocalScripts()
+            }.onFailure {
+                toast(it.message ?: "导入失败")
+            }
+        }
+    }
+
+    private fun queryDisplayName(uri: Uri): String? = runCatching {
+        requireContext().contentResolver.query(
+            uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null
+        )?.use { cursor ->
+            if (cursor.moveToFirst()) cursor.getString(0) else null
+        }
+    }.getOrNull()
+
+    private fun showPasteDialog() {
+        val density = resources.displayMetrics.density
+        val input = EditText(requireContext()).apply {
+            hint = "粘贴落雪 LX 脚本内容（JS）"
+            minLines = 6
+            maxLines = 12
+            gravity = android.view.Gravity.TOP or android.view.Gravity.START
+        }
+        val container = FrameLayout(requireContext()).apply {
+            val padding = (22 * density).toInt()
+            setPadding(padding, (8 * density).toInt(), padding, 0)
+            addView(
+                input,
+                FrameLayout.LayoutParams(
+                    FrameLayout.LayoutParams.MATCH_PARENT,
+                    FrameLayout.LayoutParams.WRAP_CONTENT
+                )
+            )
+        }
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("粘贴脚本")
+            .setMessage("脚本只保存在本机，不会上传服务器。")
+            .setView(container)
+            .setPositiveButton("导入") { _, _ ->
+                val code = input.text.toString()
+                viewLifecycleOwner.lifecycleScope.launch {
+                    LxLocalScriptStore.import(
+                        requireContext(),
+                        "custom_${System.currentTimeMillis()}.js",
+                        code,
+                    ).onSuccess {
+                        toast("已导入：${it.title}")
+                        refreshLocalScripts()
+                    }.onFailure {
+                        toast(it.message ?: "导入失败")
+                    }
+                }
+            }
+            .setNegativeButton("取消", null)
+            .show()
+    }
+
+    private fun refreshLocalScripts() {
+        if (!isAdded) {
+            return
+        }
+        val list = LxLocalScriptStore.list(requireContext())
+        binding.tvLocalScriptCount.text = "${list.size} 个"
+        binding.tvLocalScriptsEmpty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
+
+        val container = binding.llLocalScripts
+        container.removeAllViews()
+        list.forEach { script ->
+            val item = ItemLocalScriptBinding.inflate(layoutInflater, container, false)
+            item.tvLocalScriptName.text = script.title
+            item.tvLocalScriptDesc.text = "${script.fileName} · ${script.sizeLabel} · 仅本地"
+            item.btnDeleteLocalScript.setOnClickListener { confirmDeleteLocal(script) }
+            container.addView(item.root)
+        }
+    }
+
+    private fun confirmDeleteLocal(script: LxLocalScriptStore.LocalScript) {
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle("删除本地脚本")
+            .setMessage("确定删除「${script.title}」？只影响本机文件。")
+            .setNegativeButton("取消", null)
+            .setPositiveButton("删除") { _, _ ->
+                if (LxLocalScriptStore.delete(requireContext(), script.fileName)) {
+                    toast("已删除")
+                    refreshLocalScripts()
+                } else {
+                    toast("删除失败")
+                }
+            }
+            .show()
     }
 }
