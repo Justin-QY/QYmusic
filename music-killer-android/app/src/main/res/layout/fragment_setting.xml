@@ -71,14 +71,7 @@
                             android:text="界面设置"
                             android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
 
-                        <TextView
-                            android:id="@+id/tv_interface_state"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:layout_marginTop="2dp"
-                            android:text="首页曲库网易云 · 聚合搜索关"
-                            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                            android:textColor="?attr/colorOnSurfaceVariant" />
+                        
 
                     </LinearLayout>
 
@@ -157,13 +150,7 @@
                                 android:text="默认音质"
                                 android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
 
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="拿不到所选音质时自动降级播放"
-                                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                                android:textColor="?attr/colorOnSurfaceVariant" />
+                            
 
                         </LinearLayout>
 
@@ -322,14 +309,7 @@
                                 android:text="通用设置"
                                 android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
 
-                            <TextView
-                                android:id="@+id/tv_general_settings_state"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="主题 · 启动页 · 歌词"
-                                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                                android:textColor="?attr/colorOnSurfaceVariant" />
+                            
 
                         </LinearLayout>
 
@@ -389,14 +369,7 @@
                                 android:text="存储管理"
                                 android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
 
-                            <TextView
-                                android:id="@+id/tv_storage_summary"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="音频、图片、下载与临时文件"
-                                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                                android:textColor="?attr/colorOnSurfaceVariant" />
+                            
 
                         </LinearLayout>
 
@@ -523,13 +496,7 @@
                                 android:text="开源许可"
                                 android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
 
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="音源参考与客户端组件清单"
-                                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                                android:textColor="?attr/colorOnSurfaceVariant" />
+                            
 
                         </LinearLayout>
 
@@ -582,13 +549,7 @@
                                 android:text="用户协议"
                                 android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
 
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="用户协议与隐私政策"
-                                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                                android:textColor="?attr/colorOnSurfaceVariant" />
+                            
 
                         </LinearLayout>
 
@@ -646,13 +607,7 @@
                                 android:text="官方网站"
                                 android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
 
-                            <TextView
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="www.qyder.com"
-                                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                                android:textColor="?attr/colorOnSurfaceVariant" />
+                            
 
                         </LinearLayout>
 
@@ -710,14 +665,7 @@
                                 android:text="检查更新"
                                 android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
 
-                            <TextView
-                                android:id="@+id/tv_update_state"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="检查是否有新版本"
-                                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                                android:textColor="?attr/colorOnSurfaceVariant" />
+                            
 
                         </LinearLayout>
 
@@ -775,14 +723,7 @@
                                 android:text="联系作者"
                                 android:textAppearance="@style/TextAppearance.Material3.TitleMedium" />
 
-                            <TextView
-                                android:id="@+id/tv_contact_email"
-                                android:layout_width="match_parent"
-                                android:layout_height="wrap_content"
-                                android:layout_marginTop="2dp"
-                                android:text="qyder8@gmail.com"
-                                android:textAppearance="@style/TextAppearance.Material3.BodySmall"
-                                android:textColor="?attr/colorOnSurfaceVariant" />
+                            
 
                         </LinearLayout>
 

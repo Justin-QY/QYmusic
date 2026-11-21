@@ -4,19 +4,14 @@ import android.content.Intent
 import android.graphics.Color
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.net.toUri
-import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.drake.tooltip.toast
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import com.qymusic.app.BuildConfig
 import com.qymusic.app.R
 import com.qymusic.app.base.BaseMusicAppbarFragment
 import com.qymusic.app.config.SPConfig
 import com.qymusic.app.databinding.FragmentSettingBinding
 import com.qymusic.app.enums.MusicBridge
-import com.qymusic.app.utils.AppStorage
 import com.qymusic.app.utils.AppUpdater
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
@@ -75,7 +70,6 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
     override fun onResume() {
         super.onResume()
         refreshSummary()
-        refreshStorageSummary()
     }
 
     // ------------------------------------------------------------------ 摘要
@@ -86,17 +80,7 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         binding.tvQualityValue.text =
             MusicBridge.getBridgeForLevel(SPConfig.currentBridge()).displayName
 
-        binding.tvUpdateState.text =
-            "当前 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · 点击检查"
-        binding.tvContactEmail.text = EMAIL
 
-        // 通用设置入口摘要：主题 · 启动页 · 歌词
-        binding.tvGeneralSettingsState.text = GeneralSettingsFragment.summary()
-
-        // 界面设置入口摘要：首页曲库 · 聚合搜索开关
-        binding.tvInterfaceState.text =
-            "首页曲库${InterfaceSettingsFragment.catalogLabel()} · " +
-                InterfaceSettingsFragment.aggregateSearchLabel()
     }
 
     // ------------------------------------------------------------------ 关于
@@ -115,19 +99,6 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
             .setMessage(text)
             .setPositiveButton("关闭", null)
             .show()
-    }
-
-    // ------------------------------------------------------------------ 存储管理
-
-    /** 存储管理入口右侧摘要：音频、图片、下载与临时文件的总占用 */
-    private fun refreshStorageSummary() {
-        val context = requireContext().applicationContext
-        viewLifecycleOwner.lifecycleScope.launch {
-            val total = withContext(Dispatchers.IO) { AppStorage.usage(context).total }
-            if (!isAdded) return@launch
-            binding.tvStorageSummary.text =
-                "共占用 ${AppStorage.formatSize(total)}，点击查看明细"
-        }
     }
 
     // ------------------------------------------------------------------ 官网 / 邮件
