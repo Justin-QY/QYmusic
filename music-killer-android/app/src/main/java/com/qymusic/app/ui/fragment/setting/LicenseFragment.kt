@@ -33,6 +33,12 @@ class LicenseFragment : BaseMusicAppbarFragment<FragmentLicenseBinding>(R.layout
       "音源与协议参考",
       listOf(
         LicenseItem(
+          "QPlayer",
+          "Apache-2.0",
+          "播放器整体交互、音源与登录机制参考，未包含其源码",
+          "https://github.com/Justin-QY/qplayer"
+        ),
+        LicenseItem(
           "QPlayer 插件",
           "MIT",
           "插件机制、音源声明与登录方式参考；仓库内 qplayer-plugins 为归档产物，未包含其源码",
