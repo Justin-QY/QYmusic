@@ -1,6 +1,7 @@
 package com.qymusic.app.ui.fragment.setting
 
 import android.graphics.Color
+import androidx.appcompat.app.AppCompatDelegate
 import androidx.navigation.fragment.findNavController
 import com.drake.tooltip.toast
 import com.qymusic.app.R
@@ -22,6 +23,13 @@ class InterfaceSettingsFragment :
 
   companion object {
 
+    /** 主题标签：跟随系统 / 浅色 / 深色 */
+    fun themeLabel(mode: Int): String = when (mode) {
+      AppCompatDelegate.MODE_NIGHT_NO -> "浅色"
+      AppCompatDelegate.MODE_NIGHT_YES -> "深色"
+      else -> "跟随系统"
+    }
+
     /** 首页曲库名称：网易云 / QQ音乐 / 酷狗 */
     fun catalogLabel(): String = SPConfig.platformLabel(SPConfig.catalogSource())
 
@@ -36,7 +44,12 @@ class InterfaceSettingsFragment :
     baseContentBinding.appbar.setBackgroundColor(Color.TRANSPARENT)
     baseContentBinding.toolbar.setBackgroundColor(Color.TRANSPARENT)
 
+    initThemeToggle()
     initCatalogToggle()
+
+    binding.itemCloudManager.setOnClickListener {
+      findNavController().navigate(R.id.moduleManagerFragment)
+    }
 
     binding.itemSearchSource.setOnClickListener {
       findNavController().navigate(R.id.action_interface_search_source)
@@ -48,9 +61,44 @@ class InterfaceSettingsFragment :
 
   override fun onResume() {
     super.onResume()
+    syncTheme()
     updateCatalogButtons()
+    binding.tvCloudManagerState.text =
+      "${SPConfig.enabledCloudPlatforms().size} 个平台已启用，点击管理"
     binding.tvSearchSourceState.text =
       "${aggregateSearchLabel()} · ${SPConfig.enabledSearchPlatforms().size} 个平台"
+  }
+
+  // ------------------------------------------------------------------ 主题
+
+  private fun initThemeToggle() {
+    binding.toggleTheme.addOnButtonCheckedListener { _, checkedId, isChecked ->
+      if (!isChecked) {
+        return@addOnButtonCheckedListener
+      }
+      val mode = when (checkedId) {
+        R.id.btn_theme_light -> AppCompatDelegate.MODE_NIGHT_NO
+        R.id.btn_theme_dark -> AppCompatDelegate.MODE_NIGHT_YES
+        else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
+      }
+      if (mode == SPConfig.themeMode()) {
+        return@addOnButtonCheckedListener
+      }
+      SPConfig.setThemeMode(mode)
+      AppCompatDelegate.setDefaultNightMode(mode)
+    }
+  }
+
+  private fun syncTheme() {
+    val checkedId = when (SPConfig.themeMode()) {
+      AppCompatDelegate.MODE_NIGHT_NO -> R.id.btn_theme_light
+      AppCompatDelegate.MODE_NIGHT_YES -> R.id.btn_theme_dark
+      else -> R.id.btn_theme_system
+    }
+    if (binding.toggleTheme.checkedButtonId != checkedId) {
+      binding.toggleTheme.check(checkedId)
+    }
+    binding.tvThemeHint.text = "当前：${themeLabel(SPConfig.themeMode())}"
   }
 
   // ------------------------------------------------------------------ 曲库

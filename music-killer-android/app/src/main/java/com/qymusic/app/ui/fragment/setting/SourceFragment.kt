@@ -27,12 +27,21 @@ import com.qymusic.app.model.LxScriptModel
 import com.qymusic.app.utils.LxLocalScriptStore
 
 /**
- * 播放音源设置（对应设计稿第三页）
+ * 播放音源设置。
+ *
+ * 页面结构：
+ * - 概览卡：可用脚本总数、服务器 / 本地 / 第三方状态；
+ * - 落雪 LX 脚本：服务器脚本（可折叠查看、刷新）+ 本地脚本（导入、删除，仅本机）；
+ * - 第三方音源：开关、ChKSz 密钥、连接测试。
  */
 class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.fragment_source) {
 
     private var loadingScripts = false
     private var syncingSwitch = false
+
+    private var serverScriptCount = 0
+    private var localScriptCount = 0
+    private var serverExpanded = false
 
     /** 选择本地落雪脚本文件（只读取内容，不联网、不上传） */
     private val pickScriptFile =
@@ -43,11 +52,10 @@ class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.f
         }
 
     override fun initView() {
-        binding.itemChksz.setOnClickListener { showKeyDialog() }
         binding.btnEditKey.setOnClickListener { showKeyDialog() }
         binding.btnRefresh.setOnClickListener { refreshSources() }
         binding.btnTestThirdParty.setOnClickListener { testThirdParty() }
-
+        binding.btnToggleServer.setOnClickListener { toggleServerScripts() }
         binding.btnImportLocal.setOnClickListener { showImportChooser() }
 
         binding.switchThirdParty.setOnCheckedChangeListener { _, checked ->
@@ -65,6 +73,8 @@ class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.f
             }
             updateThirdPartyStatus()
         }
+
+        applyServerExpanded()
     }
 
     override fun initData() {
@@ -79,7 +89,33 @@ class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.f
     override fun onFirstResume() {
         super.onFirstResume()
         loadScripts(showToast = false)
-        refreshLocalScripts()
+    }
+
+    // ------------------------------------------------------------------ 概览 / 折叠
+
+    private fun updateOverview() {
+        val hasKey = SPConfig.thirdPartyKey().isNotBlank()
+        val thirdEnabled = SPConfig.isThirdPartyEnabled() && hasKey
+
+        binding.tvAvailableCount.text = (serverScriptCount + localScriptCount).toString()
+        binding.tvServerChip.text = "✓ 服务器脚本 $serverScriptCount 个"
+        binding.tvLocalChip.text = "本地脚本 $localScriptCount 个"
+        binding.tvThirdChip.text = if (thirdEnabled) "第三方音源 已启用" else "第三方音源 未启用"
+        binding.tvLocalBadge.text = "$localScriptCount 个"
+        binding.tvServerBadge.text =
+            if (serverScriptCount > 0) "$serverScriptCount 个已加载" else "未加载"
+        binding.tvServerToggle.text =
+            if (serverScriptCount > 0) "查看 $serverScriptCount 个脚本" else "查看脚本"
+    }
+
+    private fun toggleServerScripts() {
+        serverExpanded = !serverExpanded
+        applyServerExpanded()
+    }
+
+    private fun applyServerExpanded() {
+        binding.llScripts.visibility = if (serverExpanded) View.VISIBLE else View.GONE
+        binding.ivServerChevron.rotation = if (serverExpanded) 90f else 0f
     }
 
     // ------------------------------------------------------------------ 第三方音源
@@ -91,13 +127,14 @@ class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.f
         binding.switchThirdParty.isChecked = enabled
         syncingSwitch = false
         binding.tvChkszStatus.text = when {
-            !hasKey -> "未配置密钥 · 点击填写（api.chksz.com）"
-            enabled -> "✓ 已启用 · 密钥已保存"
-            else -> "已配置密钥，未启用"
+            !hasKey -> "未配置"
+            enabled -> "已启用"
+            else -> "已保存"
         }
         if (!hasKey && SPConfig.isThirdPartyEnabled()) {
             SPConfig.setThirdPartyEnabled(false)
         }
+        updateOverview()
     }
 
     private fun showKeyDialog(enableAfterSave: Boolean = false) {
@@ -161,7 +198,7 @@ class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.f
         }
     }
 
-    // ------------------------------------------------------------------ 落雪脚本
+    // ------------------------------------------------------------------ 服务器脚本
 
     private fun loadScripts(showToast: Boolean) {
         if (loadingScripts) {
@@ -171,24 +208,26 @@ class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.f
         viewLifecycleOwner.lifecycleScope.launch {
             try {
                 val list = Get<List<LxScriptModel>>(Api.LX_SCRIPTS).await()
+                serverScriptCount = list.size
                 renderScripts(list)
             } catch (e: Exception) {
-                binding.tvScriptCount.text = "读取失败"
-                binding.tvScriptsEmpty.visibility = android.view.View.VISIBLE
-                binding.tvScriptsEmpty.text = "读取失败：${e.message ?: "网络异常"}\n请点「刷新音源」重试"
+                serverScriptCount = 0
+                binding.tvServerBadge.text = "读取失败"
+                binding.tvScriptsEmpty.visibility = View.VISIBLE
+                binding.tvScriptsEmpty.text =
+                    "读取失败：${e.message ?: "网络异常"}\n请点「刷新音源」重试"
                 if (showToast) {
                     toast(e.message ?: "读取音源脚本失败")
                 }
             } finally {
                 loadingScripts = false
+                updateOverview()
             }
         }
     }
 
     private fun renderScripts(list: List<LxScriptModel>) {
-        binding.tvScriptCount.text = "${list.size} 个"
-        binding.tvScriptsEmpty.visibility =
-            if (list.isEmpty()) android.view.View.VISIBLE else android.view.View.GONE
+        binding.tvScriptsEmpty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
         if (list.isEmpty()) {
             binding.tvScriptsEmpty.text = "还没有可用的音源脚本"
         }
@@ -308,7 +347,7 @@ class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.f
             return
         }
         val list = LxLocalScriptStore.list(requireContext())
-        binding.tvLocalScriptCount.text = "${list.size} 个"
+        localScriptCount = list.size
         binding.tvLocalScriptsEmpty.visibility = if (list.isEmpty()) View.VISIBLE else View.GONE
 
         val container = binding.llLocalScripts
@@ -320,6 +359,7 @@ class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.f
             item.btnDeleteLocalScript.setOnClickListener { confirmDeleteLocal(script) }
             container.addView(item.root)
         }
+        updateOverview()
     }
 
     private fun confirmDeleteLocal(script: LxLocalScriptStore.LocalScript) {

@@ -26,14 +26,6 @@ class GeneralSettingsFragment :
 
   companion object {
 
-    fun themeLabel(mode: Int): String = when (mode) {
-      AppCompatDelegate.MODE_NIGHT_NO -> "浅色"
-      AppCompatDelegate.MODE_NIGHT_YES -> "深色"
-      else -> "跟随系统"
-    }
-
-    fun startPageLabel(): String = NavModules.startPage().title
-
     /** 歌词字号标签：小 / 标准 / 大 / 特大 */
     fun lyricSizeLabel(): String = when (SPConfig.lyricFontSize()) {
       SPConfig.LYRIC_FONT_SIZE_SMALL -> "小"
@@ -53,7 +45,7 @@ class GeneralSettingsFragment :
 
     /** 设置页入口右侧摘要：主题 · 启动页 · 歌词字号 */
     fun summary(): String =
-      "主题${themeLabel(SPConfig.themeMode())} · 启动${startPageLabel()} · 歌词${lyricSizeLabel()}"
+      "歌词${lyricSizeLabel()}"
 
     /** 底部导航入口摘要：当前显示在底栏的模块数 */
     fun navSummary(): String = "${NavModules.visible().size} 个模块显示在底栏，点击管理"
@@ -68,24 +60,6 @@ class GeneralSettingsFragment :
     baseContentBinding.appbar.setBackgroundColor(Color.TRANSPARENT)
     baseContentBinding.toolbar.setBackgroundColor(Color.TRANSPARENT)
 
-    binding.toggleTheme.addOnButtonCheckedListener { _, checkedId, isChecked ->
-      if (syncing || !isChecked) {
-        return@addOnButtonCheckedListener
-      }
-      val mode = when (checkedId) {
-        R.id.btn_theme_light -> AppCompatDelegate.MODE_NIGHT_NO
-        R.id.btn_theme_dark -> AppCompatDelegate.MODE_NIGHT_YES
-        else -> AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM
-      }
-      if (mode == SPConfig.themeMode()) {
-        return@addOnButtonCheckedListener
-      }
-      SPConfig.setThemeMode(mode)
-      // 系统会在深浅色真正变化时自动重建 Activity，这里不再重复 recreate()
-      AppCompatDelegate.setDefaultNightMode(mode)
-    }
-
-    binding.itemStartPage.setOnClickListener { showStartPageDialog() }
     binding.itemLyricSettings.setOnClickListener {
       findNavController().navigate(R.id.action_general_lyrics)
     }
@@ -105,18 +79,6 @@ class GeneralSettingsFragment :
   private fun syncUi() {
     syncing = true
 
-    val themeId = when (SPConfig.themeMode()) {
-      AppCompatDelegate.MODE_NIGHT_NO -> R.id.btn_theme_light
-      AppCompatDelegate.MODE_NIGHT_YES -> R.id.btn_theme_dark
-      else -> R.id.btn_theme_system
-    }
-    if (binding.toggleTheme.checkedButtonId != themeId) {
-      binding.toggleTheme.check(themeId)
-    }
-    binding.tvThemeHint.text = "当前：${themeLabel(SPConfig.themeMode())}"
-
-    binding.tvStartPageValue.text = "当前：${startPageLabel()} · 点击切换"
-
     binding.tvLyricSettingsState.text = lyricSummary()
 
     binding.tvNavManagerState.text = navSummary()
@@ -124,32 +86,4 @@ class GeneralSettingsFragment :
     syncing = false
   }
 
-  /**
-   * 启动页候选取「当前启用的 NavModules」，与底栏保持一致；
-   * 已隐藏的模块不会出现在候选里，已保存的选择被隐藏时由 NavModules.startPage() 回落。
-   */
-  private fun showStartPageDialog() {
-    if (!isAdded) {
-      return
-    }
-    val modules = NavModules.visible().ifEmpty { NavModules.ALL }
-    if (modules.isEmpty()) {
-      return
-    }
-    val labels = modules.map { it.title }.toTypedArray()
-    val checked = modules.indexOfFirst { it.key == NavModules.startPage().key }
-      .coerceAtLeast(0)
-
-    MaterialAlertDialogBuilder(requireContext())
-      .setTitle("默认启动页")
-      .setSingleChoiceItems(labels, checked) { dialog, which ->
-        val module = modules.getOrNull(which) ?: return@setSingleChoiceItems
-        SPConfig.setStartPageKey(module.key)
-        dialog.dismiss()
-        syncUi()
-        toast("下次启动将直接打开${module.title}")
-      }
-      .setNegativeButton("取消", null)
-      .show()
-  }
 }

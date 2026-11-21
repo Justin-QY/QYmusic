@@ -61,15 +61,11 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
             findNavController().navigate(R.id.action_setting_license)
         }
         binding.itemTerms.setOnClickListener {
-            showLongTextDialog("用户协议", getString(R.string.terms_content))
-        }
-        binding.itemPrivacy.setOnClickListener {
-            showLongTextDialog("隐私政策", getString(R.string.privacy_content))
-        }
-
-        // 云端平台配置独立页面
-        binding.itemPluginManager.setOnClickListener {
-            findNavController().navigate(R.id.action_setting_plugins)
+            // 隐私政策已并入用户协议，一起展示
+            showLongTextDialog(
+                "用户协议与隐私政策",
+                getString(R.string.terms_content) + "<br><br>" + getString(R.string.privacy_content)
+            )
         }
     }
 
@@ -93,10 +89,6 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         binding.tvUpdateState.text =
             "当前 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · 点击检查"
         binding.tvContactEmail.text = EMAIL
-
-        // 云端管理入口摘要：启用平台数
-        binding.tvPluginManagerState.text =
-            "${SPConfig.enabledCloudPlatforms().size} 个平台已启用，点击管理"
 
         // 通用设置入口摘要：主题 · 启动页 · 歌词
         binding.tvGeneralSettingsState.text = GeneralSettingsFragment.summary()

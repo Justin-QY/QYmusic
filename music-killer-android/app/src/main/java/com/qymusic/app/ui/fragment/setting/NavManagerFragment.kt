@@ -4,6 +4,7 @@ import android.view.ViewGroup
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import com.drake.tooltip.toast
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.qymusic.app.R
 import com.qymusic.app.base.BaseMusicAppbarFragment
 import com.qymusic.app.config.NavModules
@@ -33,6 +34,7 @@ class NavManagerFragment :
     binding.rvNav.layoutManager = LinearLayoutManager(requireContext())
     binding.rvNav.adapter = navAdapter
     DragSortSupport.attach(binding.rvNav, navAdapter::move, ::saveNavOrder)
+    binding.itemStartPage.setOnClickListener { showStartPageDialog() }
   }
 
   override fun initData() {
@@ -41,6 +43,42 @@ class NavManagerFragment :
   override fun onResume() {
     super.onResume()
     renderNav()
+    syncStartPage()
+  }
+
+  // ------------------------------------------------------------------ 默认启动页
+
+  private fun syncStartPage() {
+    binding.tvStartPageState.text = "当前：${NavModules.startPage().title} · 点击切换"
+  }
+
+  /**
+   * 启动页候选取「当前启用的 NavModules」，与底栏保持一致；
+   * 已隐藏的模块不会出现在候选里，已保存的选择被隐藏时由 NavModules.startPage() 回落。
+   */
+  private fun showStartPageDialog() {
+    if (!isAdded) {
+      return
+    }
+    val modules = NavModules.visible().ifEmpty { NavModules.ALL }
+    if (modules.isEmpty()) {
+      return
+    }
+    val labels = modules.map { it.title }.toTypedArray()
+    val checked = modules.indexOfFirst { it.key == NavModules.startPage().key }
+      .coerceAtLeast(0)
+
+    MaterialAlertDialogBuilder(requireContext())
+      .setTitle("默认启动页")
+      .setSingleChoiceItems(labels, checked) { dialog, which ->
+        val module = modules.getOrNull(which) ?: return@setSingleChoiceItems
+        SPConfig.setStartPageKey(module.key)
+        dialog.dismiss()
+        syncStartPage()
+        toast("下次启动将直接打开${module.title}")
+      }
+      .setNegativeButton("取消", null)
+      .show()
   }
 
   // ------------------------------------------------------------------ 导航模块
