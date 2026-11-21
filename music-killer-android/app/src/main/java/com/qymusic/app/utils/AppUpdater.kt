@@ -47,16 +47,6 @@ object AppUpdater {
 
     private const val UPDATE_JSON = "/app/update.json"
 
-    private const val GITHUB_API =
-        "https://api.github.com/repos/Justin-QY/QYmusic/releases/latest"
-
-    /** GitHub API 强制要求 User-Agent，缺失会直接返回 403 */
-    private const val GITHUB_USER_AGENT = "QYMusic-Android"
-
-    /** GitHub Release 页面：仓库不再存放 APK，统一从 Release 附件下载 */
-    private const val GITHUB_DOWNLOAD_URL =
-        "https://github.com/Justin-QY/QYmusic/releases/latest"
-
     /** 同一进程内避免启动检查和手动检查同时进行 */
     private var checking = false
 
@@ -66,7 +56,6 @@ object AppUpdater {
         class Failed(val detail: String) : CheckResult()
     }
 
-    private class ReleaseAsset(val url: String, val size: Long)
 
     /**
      * 手动检查更新：忽略节流，失败/已最新都会给提示。
@@ -137,25 +126,11 @@ object AppUpdater {
         val currentName = BuildConfig.VERSION_NAME
 
         val server = runCatching { fetchServer() }
-        val serverModel = server.getOrNull()
-        // 服务器下发的 minVersionCode 优先级最高：无论 GitHub 有没有新版本都必须更新
-        if (serverModel != null && serverModel.minVersionCode > currentCode) {
-            return CheckResult.Update(serverModel)
-        }
-        if (serverModel != null && isNewer(serverModel, currentCode, currentName)) {
-            return CheckResult.Update(serverModel)
-        }
+        val model = server.getOrNull()
+            ?: return CheckResult.Failed(server.exceptionOrNull()?.friendlyMessage() ?: "网络异常")
 
-        val github = runCatching { fetchGitHub() }
-        val githubModel = github.getOrNull()
-        if (githubModel != null && isNewer(githubModel, currentCode, currentName)) {
-            return CheckResult.Update(githubModel)
-        }
-
-        if (serverModel == null && githubModel == null) {
-            val serverError = server.exceptionOrNull()?.friendlyMessage() ?: "网络异常"
-            val githubError = github.exceptionOrNull()?.friendlyMessage() ?: "网络异常"
-            return CheckResult.Failed("服务器：$serverError；GitHub：$githubError")
+        if (model.minVersionCode > currentCode || isNewer(model, currentCode, currentName)) {
+            return CheckResult.Update(model)
         }
         return CheckResult.Latest
     }
@@ -169,89 +144,6 @@ object AppUpdater {
             url = if (model.url.isBlank()) "" else absoluteUrl(model.url),
             backupUrl = if (model.backupUrl.isBlank()) "" else absoluteUrl(model.backupUrl),
         )
-    }
-
-    /**
-     * GitHub Release：/repos/{owner}/{repo}/releases/latest
-     *
-     * 字段映射：
-     * - tag_name → versionName（去掉前缀 v）
-     * - body → 更新说明（同时可写 versionCode: 34 约定版本号）
-     * - assets[].browser_download_url / size → 下载地址与大小
-     * - published_at → 发布时间
-     */
-    private suspend fun CoroutineScope.fetchGitHub(): UpdateModel {
-        val raw = Get<String>(GITHUB_API) {
-            addHeader("User-Agent", GITHUB_USER_AGENT)
-            addHeader("Accept", "application/vnd.github+json")
-        }.await()
-
-        val json = JSONObject(raw)
-        if (json.optBoolean("draft", false)) {
-            throw IllegalStateException("最新 Release 仍是草稿")
-        }
-        val tag = json.optString("tag_name").trim()
-        if (tag.isBlank()) {
-            throw IllegalStateException("Release 缺少 tag_name")
-        }
-        val versionName = versionNameFromTag(tag)
-        if (versionName.isBlank()) {
-            throw IllegalStateException("无法从 tag 解析版本号：$tag")
-        }
-        val body = json.optString("body").let { if (it == "null") "" else it }
-        val asset = findApkAsset(json)
-            ?: throw IllegalStateException("Release 中没有 .apk 安装包")
-
-        return UpdateModel(
-            versionName = versionName,
-            versionCode = versionCodeFrom(tag, body),
-            url = asset.url,
-            updateTime = json.optString("published_at").take(10),
-            changelog = body,
-            size = asset.size,
-            md5 = "",
-            force = true,
-            minVersionCode = 0L,
-            backupUrl = "",
-        )
-    }
-
-    private fun findApkAsset(json: JSONObject): ReleaseAsset? {
-        val assets = json.optJSONArray("assets") ?: return null
-        for (i in 0 until assets.length()) {
-            val asset = assets.optJSONObject(i) ?: continue
-            val name = asset.optString("name")
-            val url = asset.optString("browser_download_url")
-            if (name.endsWith(".apk", ignoreCase = true) && url.startsWith("http")) {
-                return ReleaseAsset(url, asset.optLong("size", 0L))
-            }
-        }
-        return null
-    }
-
-    /** v1.3.1 / release-1.3.1 → 1.3.1 */
-    private fun versionNameFromTag(tag: String): String {
-        val dotted = Regex("""\d+(?:\.\d+)+""").find(tag)
-        if (dotted != null) {
-            return dotted.value
-        }
-        val leading = Regex("""^[vV]?(\d+)""").find(tag.trim())
-        return leading?.groupValues?.get(1).orEmpty()
-    }
-
-    /**
-     * 约定版本号（可选）：
-     * - release body 中写 `versionCode: 34` / `版本号：34`
-     * - tag 后缀写 `v1.3.2+34` / `v1.3.2-build34`
-     * 解析不到时返回 0，改用 versionName 比较。
-     */
-    private fun versionCodeFrom(tag: String, body: String): Long {
-        Regex("""(?i)(?:version\s*code|versioncode|版本号|版本代码)\s*[=:：]?\s*(\d+)""")
-            .find(body)?.let { return it.groupValues[1].toLongOrNull() ?: 0L }
-        Regex("""(?i)(?:[-_.]?(?:build|code)[-_.:]?)(\d+)$""")
-            .find(tag)?.let { return it.groupValues[1].toLongOrNull() ?: 0L }
-        Regex("""\+(\d+)$""").find(tag)?.let { return it.groupValues[1].toLongOrNull() ?: 0L }
-        return 0L
     }
 
     /**
@@ -315,7 +207,6 @@ object AppUpdater {
             .setMessage(message)
             .setCancelable(false)
             .setPositiveButton("立即更新", null)
-            .setNeutralButton("去 GitHub 下载") { _, _ -> openGitHubDownload(activity) }
             .create()
         // 强制更新：屏蔽返回键与点击外部，且不提供「稍后」
         dialog.setCancelable(false)
@@ -346,7 +237,6 @@ object AppUpdater {
             .setMessage("检查更新失败，请检查网络后重试。\n\n${detail.ifBlank { "网络异常" }}")
             .setCancelable(!startup)
             .setPositiveButton("重试", null)
-            .setNeutralButton("去 GitHub 下载") { _, _ -> openGitHubDownload(activity) }
         if (startup) {
             builder.setNegativeButton("退出应用") { _, _ -> exitApp(activity) }
         } else {
@@ -554,12 +444,6 @@ object AppUpdater {
     }
 
     /** 打开 GitHub 上已打包好的 APK（发版时会把安装包覆盖提交到仓库） */
-    private fun openGitHubDownload(activity: AppCompatActivity) {
-        runCatching {
-            activity.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(GITHUB_DOWNLOAD_URL)))
-        }.onFailure { toast("没有找到可用的浏览器") }
-    }
-
     private fun offerBrowserDownload(activity: AppCompatActivity, model: UpdateModel) {        MaterialAlertDialogBuilder(activity)
             .setTitle("无法自动安装")
             .setMessage("可以用浏览器下载安装包后手动安装。")
