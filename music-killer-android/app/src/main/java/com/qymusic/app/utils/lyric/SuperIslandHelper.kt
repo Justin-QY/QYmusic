@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.provider.Settings
@@ -16,6 +17,9 @@ import com.qymusic.app.R
 import com.qymusic.app.config.SPConfig
 import com.qymusic.app.ui.activity.MainActivity
 import org.json.JSONObject
+import java.text.SimpleDateFormat
+import java.util.Date
+import java.util.Locale
 
 /**
  * 澎湃 OS（HyperOS）超级岛 / 焦点通知。
@@ -68,6 +72,104 @@ object SuperIslandHelper {
     Settings.System.getInt(context.contentResolver, FOCUS_PROTOCOL_SETTING, 0)
   }.getOrDefault(0)
 
+  // ------------------------------------------------------------------ 诊断
+
+  @Volatile
+  private var lastPublishTime: String = "尚未发布"
+
+  @Volatile
+  private var lastHasPromotable: Boolean = false
+
+  @Volatile
+  private var lastPromoted: Boolean = false
+
+  @Volatile
+  private var lastCanPostPromoted: Boolean = false
+
+  @Volatile
+  private var lastChannelImportance: Int = -1
+
+  /** 设置页「超级岛诊断」里的系统能力报告 */
+  fun diagnosticReport(context: Context): String = buildString {
+    appendLine("机型：${Build.MANUFACTURER} ${Build.MODEL}")
+    appendLine("系统：Android ${Build.VERSION.RELEASE}（API ${Build.VERSION.SDK_INT}）")
+    appendLine("HyperOS：${systemProperty("ro.mi.os.version.name").ifBlank { "未检测到" }}")
+    appendLine("焦点协议：${focusProtocol(context)}")
+    appendLine("岛特性：${systemProperty("persist.sys.feature.island").ifBlank { "未设置" }}")
+    appendLine("焦点通知权限：${if (hasFocusPermission(context)) "已允许" else "未允许"}")
+    if (Build.VERSION.SDK_INT >= 36) {
+      appendLine("允许发实况通知：${yesNo(lastCanPostPromoted)}")
+      appendLine("通知可被提升：${yesNo(lastHasPromotable)}")
+      appendLine("已标记提升：${yesNo(lastPromoted)}")
+    } else {
+      appendLine("系统低于 Android 16：当前设备不走 Live Update")
+    }
+    appendLine("通知通道重要级：${importanceLabel(lastChannelImportance)}")
+    appendLine("上次发布：$lastPublishTime")
+    appendLine("Shizuku：${ShizukuXmsfHelper.statusLabel(context)}")
+    appendLine("XMSF 防火墙：${ShizukuXmsfHelper.lastPulseResult}")
+  }
+
+  private fun recordDiagnostics(context: Context, notification: Notification) {
+    runCatching {
+      val nm = context.getSystemService(NotificationManager::class.java)
+      if (Build.VERSION.SDK_INT >= 36) {
+        lastCanPostPromoted = runCatching { nm?.canPostPromotedNotifications() == true }
+          .getOrDefault(false)
+        lastHasPromotable = runCatching {
+          Notification::class.java
+            .getMethod("hasPromotableCharacteristics")
+            .invoke(notification) as? Boolean
+        }.getOrNull() ?: false
+        lastPromoted = (notification.flags and Notification.FLAG_PROMOTED_ONGOING) != 0
+      }
+      lastChannelImportance = nm?.getNotificationChannel(CHANNEL_ID)?.importance ?: -1
+      lastPublishTime = SimpleDateFormat("HH:mm:ss", Locale.getDefault()).format(Date())
+    }
+  }
+
+  private fun hasFocusPermission(context: Context): Boolean = runCatching {
+    val extras = Bundle().apply { putString("package", context.packageName) }
+    context.contentResolver
+      .call(Uri.parse("content://miui.statusbar.notification.public"), "canShowFocus", null, extras)
+      ?.getBoolean("canShowFocus") ?: false
+  }.getOrDefault(false)
+
+  private fun systemProperty(key: String): String = runCatching {
+    val clazz = Class.forName("android.os.SystemProperties")
+    clazz.getMethod("get", String::class.java).invoke(null, key) as? String ?: ""
+  }.getOrDefault("")
+
+  private fun yesNo(value: Boolean): String = if (value) "是" else "否"
+
+  private fun importanceLabel(importance: Int): String = when (importance) {
+    NotificationManager.IMPORTANCE_NONE -> "已关闭"
+    NotificationManager.IMPORTANCE_MIN -> "最低"
+    NotificationManager.IMPORTANCE_LOW -> "低"
+    NotificationManager.IMPORTANCE_DEFAULT -> "默认"
+    NotificationManager.IMPORTANCE_HIGH -> "高"
+    else -> "未创建/未知（$importance）"
+  }
+
+  /**
+   * 状态栏胶囊的短文本：系统有长度上限（中文约 7 个字），
+   * 超出会导致整条通知无法被提升为实况通知，所以这里按权重截断。
+   */
+  private fun shortCriticalText(text: String): String {
+    val maxWeight = 14
+    var weight = 0
+    val out = StringBuilder()
+    for (ch in text.trim()) {
+      val unit = if (ch.code > 0x2E7F) 2 else 1
+      if (weight + unit > maxWeight) {
+        break
+      }
+      weight += unit
+      out.append(ch)
+    }
+    return out.toString().ifBlank { "♪" }
+  }
+
   /**
    * 设备是否可能支持超级岛：小米系 + Android 14（HyperOS 1）及以上。
    * 真正的渲染结果仍由系统决定，这里只用于「要不要发」以及设置页提示。
@@ -107,51 +209,48 @@ object SuperIslandHelper {
       ensureChannel(appContext)
 
       val line = lyric.trim().ifBlank { title.trim() }.ifBlank { "QY MUSIC" }
-      val label = listOf(title.trim(), artist.trim())
-        .filter { it.isNotBlank() }
-        .joinToString(" · ")
-        .ifBlank { "QY MUSIC" }
+      val songTitle = title.trim().ifBlank { "QY MUSIC" }
+      val artistText = artist.trim()
 
       val extras = buildFocusExtras(appContext, title, artist, line, nextLyric, progress)
       val safeProgress = progress.coerceIn(0, 100)
 
-      val notification = if (Build.VERSION.SDK_INT >= 36) {
-        // Android 16 / HyperOS 4：用系统 Live Update 通知，锁屏/通知栏/超级岛可以原生渲染
-        val style = Notification.ProgressStyle()
-          .setStyledByProgress(false)
-          .setProgress(safeProgress)
-          .setProgressPoints(listOf(Notification.ProgressStyle.Point(safeProgress)))
-        Notification.Builder(appContext, CHANNEL_ID)
-          .setSmallIcon(R.drawable.baseline_lyrics_24)
-          .setContentTitle(line)
-          .setContentText(label)
-          .setStyle(style)
-          .setFlag(Notification.FLAG_PROMOTED_ONGOING, true)
-          .setShortCriticalText(line.take(24))
-          .setCategory(Notification.CATEGORY_TRANSPORT)
-          .setVisibility(Notification.VISIBILITY_PUBLIC)
-          .setShowWhen(false)
-          .setOnlyAlertOnce(true)
-          .setOngoing(isPlaying)
-          .setContentIntent(openAppIntent(appContext))
-          .addExtras(extras)
-          .build()
-      } else {
-        NotificationCompat.Builder(appContext, CHANNEL_ID)
-          .setSmallIcon(R.drawable.baseline_lyrics_24)
-          .setContentTitle(line)
-          .setContentText(label)
-          .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
-          .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
-          .setShowWhen(false)
-          .setOnlyAlertOnce(true)
-          .setSilent(true)
-          .setLocalOnly(true)
-          .setOngoing(isPlaying)
-          .setContentIntent(openAppIntent(appContext))
-          .addExtras(extras)
-          .build()
+      // 通知本体按 Android 16 Live Update 规范构建：
+      // - ongoing + setRequestPromotedOngoing(true)
+      // - ProgressStyle 用 Segment(100)，styledByProgress = true
+      // - shortCriticalText 必须很短（中文约 7 个字），超长会导致系统拒绝提升
+      val builder = NotificationCompat.Builder(appContext, CHANNEL_ID)
+        .setSmallIcon(R.drawable.baseline_lyrics_24)
+        .setContentTitle(songTitle)
+        .setContentText(line)
+        .apply { if (artistText.isNotBlank()) setSubText(artistText) }
+        .setCategory(NotificationCompat.CATEGORY_TRANSPORT)
+        .setVisibility(NotificationCompat.VISIBILITY_PUBLIC)
+        .setPriority(NotificationCompat.PRIORITY_HIGH)
+        .setShowWhen(false)
+        .setOnlyAlertOnce(true)
+        .setLocalOnly(true)
+        .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_IMMEDIATE)
+        .setOngoing(isPlaying)
+        .setContentIntent(openAppIntent(appContext))
+        .addExtras(extras)
+
+      if (Build.VERSION.SDK_INT >= 36) {
+        builder.setRequestPromotedOngoing(true)
+        val segment = NotificationCompat.ProgressStyle.Segment(100).apply {
+          setColor(0xFF757575.toInt())
+        }
+        builder.setStyle(
+          NotificationCompat.ProgressStyle()
+            .setProgressSegments(arrayListOf(segment))
+            .setStyledByProgress(true)
+            .setProgress(safeProgress),
+        )
+        builder.setShortCriticalText(shortCriticalText(line))
       }
+
+      val notification = builder.build()
+      recordDiagnostics(appContext, notification)
 
       ShizukuXmsfHelper.pulse(appContext) {
         val accepted = SuperIslandService.publish(appContext, notification)

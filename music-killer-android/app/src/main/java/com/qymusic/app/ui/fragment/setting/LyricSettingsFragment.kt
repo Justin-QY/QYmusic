@@ -3,8 +3,10 @@ package com.qymusic.app.ui.fragment.setting
 import android.content.Intent
 import android.graphics.Color
 import android.net.Uri
+import android.provider.Settings
 import android.util.TypedValue
 import com.drake.tooltip.toast
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.qymusic.app.R
 import com.qymusic.app.base.BaseMusicAppbarFragment
 import com.qymusic.app.config.SPConfig
@@ -81,6 +83,7 @@ class LyricSettingsFragment :
     }
 
     binding.itemShizuku.setOnClickListener { onShizukuClicked() }
+    binding.itemIslandDiagnostic.setOnClickListener { showDiagnostics() }
   }
 
   override fun initData() {
@@ -184,5 +187,30 @@ class LyricSettingsFragment :
   private fun openUrl(url: String) {
     runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
       .onFailure { toast("没有找到可用的浏览器") }
+  }
+
+  /** 诊断报告：确认系统是否允许提升、焦点权限、Shizuku 防火墙结果 */
+  private fun showDiagnostics() {
+    MaterialAlertDialogBuilder(requireContext())
+      .setTitle("超级岛诊断")
+      .setMessage(SuperIslandHelper.diagnosticReport(requireContext()))
+      .setPositiveButton("实况通知设置") { _, _ -> openPromotedSettings() }
+      .setNeutralButton("通知设置") { _, _ -> openAppNotificationSettings() }
+      .setNegativeButton("关闭", null)
+      .show()
+  }
+
+  private fun openPromotedSettings() {
+    val intent = Intent("android.settings.MANAGE_APP_PROMOTED_NOTIFICATIONS")
+      .putExtra(Settings.EXTRA_APP_PACKAGE, requireContext().packageName)
+    runCatching { startActivity(intent) }
+      .onFailure { openAppNotificationSettings() }
+  }
+
+  private fun openAppNotificationSettings() {
+    val intent = Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+      .putExtra(Settings.EXTRA_APP_PACKAGE, requireContext().packageName)
+    runCatching { startActivity(intent) }
+      .onFailure { toast("无法打开通知设置") }
   }
 }

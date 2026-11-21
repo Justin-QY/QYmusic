@@ -55,6 +55,11 @@ object ShizukuXmsfHelper {
   @Volatile
   private var currentXmsfUid: Int? = null
 
+  /** 诊断用：最近一次防火墙脉冲结果 */
+  @Volatile
+  var lastPulseResult: String = "未尝试"
+    private set
+
   fun isShizukuInstalled(context: Context): Boolean = runCatching {
     context.packageManager.getPackageInfo(SHIZUKU_PACKAGE, 0)
     true
@@ -116,6 +121,7 @@ object ShizukuXmsfHelper {
    */
   fun pulse(context: Context, block: () -> Unit) {
     if (!hasPermission()) {
+      lastPulseResult = "未授权（直接发布）"
       runCatching(block)
       return
     }
@@ -124,19 +130,29 @@ object ShizukuXmsfHelper {
       mutex.withLock {
         val uid = resolveXmsfUid(appContext)
         if (uid == null) {
+          lastPulseResult = "未找到 com.xiaomi.xmsf"
           runCatching(block)
           return@withLock
         }
+        var blockError = ""
         val blocked = runCatching { applyFirewallRule(uid, enabled = false) }
-          .onFailure { Log.w(TAG, "block xmsf failed: ${it.message}") }
+          .onFailure {
+            blockError = it.message ?: it.javaClass.simpleName
+            Log.w(TAG, "block xmsf failed: ${it.message}")
+          }
           .isSuccess
+        if (!blocked) {
+          lastPulseResult = "切断失败：$blockError"
+        }
         try {
           runCatching(block)
         } finally {
           if (blocked) {
             runCatching { delay(PULSE_MS) }
-            runCatching { applyFirewallRule(uid, enabled = true) }
+            val restored = runCatching { applyFirewallRule(uid, enabled = true) }
               .onFailure { Log.w(TAG, "restore xmsf failed: ${it.message}") }
+              .isSuccess
+            lastPulseResult = if (restored) "切断并恢复成功" else "恢复失败"
           }
         }
       }
