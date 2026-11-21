@@ -14,13 +14,18 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.hjq.permissions.Permission
 import com.hjq.permissions.XXPermissions
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import com.qymusic.app.BuildConfig
 import com.qymusic.app.config.Api
 import com.qymusic.app.model.UpdateModel
+import okhttp3.OkHttpClient
+import okhttp3.Request
 import org.json.JSONObject
 import java.io.File
+import java.io.IOException
 import java.security.MessageDigest
 
 /**
@@ -422,17 +427,11 @@ object AppUpdater {
                     if (index > 0) {
                         activity.runOnUiThread { button.text = "切换备用线路…" }
                     }
-                    val file = Get<File>(source) {
-                        setDownloadDir(dir)
-                        setDownloadFileName(fileName)
-                        addDownloadListener(object : ProgressListener() {
-                            override fun onProgress(p: Progress) {
-                                activity.runOnUiThread {
-                                    button.text = if (p.finish) "校验中" else "下载中 ${p.progress()}"
-                                }
-                            }
-                        })
-                    }.await()
+                    val file = downloadToFile(source, target) { p ->
+                        activity.runOnUiThread {
+                            button.text = if (p >= 100) "校验中" else "下载中 $p%"
+                        }
+                    }
 
                     if (!file.isFile || file.length() <= 0L) {
                         throw IllegalStateException("下载文件为空")
@@ -459,6 +458,49 @@ object AppUpdater {
             canRetry()
             toast("更新失败：${lastError?.message ?: "未知错误"}")
         }
+    }
+
+    private suspend fun downloadToFile(
+        url: String,
+        target: File,
+        onProgress: (Int) -> Unit,
+    ): File = withContext(Dispatchers.IO) {
+        val client = OkHttpClient.Builder()
+            .connectTimeout(30, java.util.concurrent.TimeUnit.SECONDS)
+            .readTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
+            .build()
+        val request = Request.Builder()
+            .url(url)
+            .header("User-Agent", "QYMusic-Android")
+            .build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw IOException("HTTP ${response.code}")
+            val body = response.body ?: throw IOException("空响应")
+            val total = body.contentLength()
+            target.parentFile?.mkdirs()
+            body.byteStream().use { input ->
+                target.outputStream().use { output ->
+                    val buffer = ByteArray(64 * 1024)
+                    var read = 0L
+                    var last = -1
+                    while (true) {
+                        val n = input.read(buffer)
+                        if (n < 0) break
+                        output.write(buffer, 0, n)
+                        read += n
+                        if (total > 0) {
+                            val percent = ((read * 100) / total).toInt().coerceIn(0, 100)
+                            if (percent != last) {
+                                last = percent
+                                onProgress(percent)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        if (!target.isFile || target.length() <= 0L) throw IOException("下载文件为空")
+        target
     }
 
     private fun install(
