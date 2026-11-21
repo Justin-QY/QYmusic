@@ -15,6 +15,12 @@ import com.qymusic.app.utils.preserveScrollState
 class FavoriteFragment :
   BaseMusicAppbarFragment<FragmentFavoriteBinding>(R.layout.fragment_favorite) {
 
+  private fun openFavoriteAll() {
+    if (navController.currentDestination?.id != R.id.favoriteAllFragment) {
+      navController.navigate(R.id.favoriteAllFragment)
+    }
+  }
+
   override fun openMediaController(): Boolean {
     return true
   }
@@ -30,14 +36,14 @@ class FavoriteFragment :
     baseContentBinding.toolbar.inflateMenu(R.menu.menu_favorite)
     baseContentBinding.toolbar.setOnMenuItemClickListener { item ->
       if (item.itemId == R.id.action_favorite_all) {
-        if (navController.currentDestination?.id != R.id.favoriteAllFragment) {
-          navController.navigate(R.id.favoriteAllFragment)
-        }
+        openFavoriteAll()
         true
       } else {
         false
       }
     }
+
+    binding.itemFavoriteAll.setOnClickListener { openFavoriteAll() }
 
     binding.page.onLoad(this) { page ->
       withIO {

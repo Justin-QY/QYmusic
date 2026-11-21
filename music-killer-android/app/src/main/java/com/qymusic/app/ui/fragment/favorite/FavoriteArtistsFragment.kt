@@ -46,7 +46,7 @@ class FavoriteArtistsFragment : Fragment(R.layout.fragment_favorite_artists) {
     viewLifecycleOwner.lifecycleScope.launch {
       val artists = FavoriteRepository.artists().map {
         ArtistModel(
-          id = it.artistId,
+          id = it.id,
           name = it.name,
           pic = it.cover,
           pic120 = it.cover,

@@ -46,7 +46,7 @@ class FavoritePlaylistsFragment : Fragment(R.layout.fragment_favorite_playlists)
     viewLifecycleOwner.lifecycleScope.launch {
       val playlists = FavoriteRepository.playlists().map {
         PlayListModel(
-          id = it.playlistId,
+          id = it.id,
           name = it.name,
           img = it.cover,
           img700 = it.cover,
