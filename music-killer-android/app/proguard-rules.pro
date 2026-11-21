@@ -32,3 +32,9 @@
 
 # 保留基础信息，便于崩溃定位
 -renamesourcefileattribute SourceFile
+
+# Shizuku / hidden API
+-keep class rikka.shizuku.** { *; }
+-keep class org.lsposed.hiddenapibypass.** { *; }
+-dontwarn rikka.shizuku.**
+-dontwarn org.lsposed.hiddenapibypass.**

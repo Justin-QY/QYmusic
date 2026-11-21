@@ -153,8 +153,17 @@ object SuperIslandHelper {
           .build()
       }
 
-      manager.notify(NOTIFICATION_ID, notification)
-      Log.d(TAG, "super island payload published: $line")
+      ShizukuXmsfHelper.pulse(appContext) {
+        val accepted = SuperIslandService.publish(appContext, notification)
+        if (!accepted) {
+          runCatching { manager.notify(NOTIFICATION_ID, notification) }
+        }
+      }
+      Log.d(
+        TAG,
+        "super island payload published: $line " +
+          "(focus=${focusProtocol(appContext)}, shizuku=${ShizukuXmsfHelper.hasPermission()})",
+      )
       true
     } catch (e: SecurityException) {
       Log.w(TAG, "notification permission denied: ${e.message}")
@@ -169,7 +178,7 @@ object SuperIslandHelper {
   /** 关闭超级岛开关或停止播放时移除，避免留下一条常驻通知 */
   fun clear(context: Context) {
     runCatching {
-      NotificationManagerCompat.from(context.applicationContext).cancel(NOTIFICATION_ID)
+      SuperIslandService.stop(context.applicationContext)
     }.onFailure { Log.w(TAG, "clear super island failed: ${it.message}") }
   }
 

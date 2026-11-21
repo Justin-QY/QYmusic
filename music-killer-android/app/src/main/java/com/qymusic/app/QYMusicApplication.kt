@@ -61,6 +61,9 @@ class QYMusicApplication : Application() {
 
     CrashHandler.getInstance().init()
 
+    // 上次若在超级岛脉冲中途被杀，启动时把 XMSF 网络恢复默认
+    com.qymusic.app.utils.lyric.ShizukuXmsfHelper.restoreAsync(this)
+
     val cacheSize = 2028L * 1024 * 1024 // 2GB
     val evictor = LeastRecentlyUsedCacheEvictor(cacheSize)
     val databaseProvider = StandaloneDatabaseProvider(this)

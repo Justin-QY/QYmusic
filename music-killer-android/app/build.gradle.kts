@@ -45,8 +45,8 @@ android {
     applicationId = "com.qymusic.app"
     minSdk = 24
     targetSdk = 36
-    versionCode = 51
-    versionName = "1.0.6"
+    versionCode = 52
+    versionName = "1.0.7"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     signingConfig = signingConfigs.getByName("release")
@@ -123,6 +123,11 @@ dependencies {
   implementation(libs.androidx.navigation.ui.ktx)
   implementation("androidx.palette:palette-ktx:1.0.0")
   implementation("com.github.Moriafly:LyricViewX:1.4.0-alpha02")
+
+  // HyperOS 超级岛兼容（可选）：Shizuku 授权 + 隐藏 API 放行
+  implementation("dev.rikka.shizuku:api:13.1.5")
+  implementation("dev.rikka.shizuku:provider:13.1.5")
+  implementation("org.lsposed.hiddenapibypass:hiddenapibypass:6.1")
   // https://mvnrepository.com/artifact/com.intuit.sdp/sdp-android
   runtimeOnly("com.intuit.sdp:sdp-android:1.1.1")
 

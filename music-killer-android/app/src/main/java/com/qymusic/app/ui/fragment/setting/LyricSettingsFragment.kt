@@ -2,6 +2,7 @@ package com.qymusic.app.ui.fragment.setting
 
 import android.content.Intent
 import android.graphics.Color
+import android.net.Uri
 import android.util.TypedValue
 import com.drake.tooltip.toast
 import com.qymusic.app.R
@@ -9,6 +10,7 @@ import com.qymusic.app.base.BaseMusicAppbarFragment
 import com.qymusic.app.config.SPConfig
 import com.qymusic.app.constants.IntentActions
 import com.qymusic.app.databinding.FragmentLyricSettingsBinding
+import com.qymusic.app.utils.lyric.ShizukuXmsfHelper
 import com.qymusic.app.utils.lyric.SuperIslandHelper
 
 /**
@@ -77,6 +79,8 @@ class LyricSettingsFragment :
         toast("已关闭超级岛歌词")
       }
     }
+
+    binding.itemShizuku.setOnClickListener { onShizukuClicked() }
   }
 
   override fun initData() {
@@ -100,6 +104,7 @@ class LyricSettingsFragment :
 
     binding.switchLyricTranslation.isChecked = SPConfig.isLyricTranslationEnabled()
     binding.switchSuperIsland.isChecked = SPConfig.isLyricSuperIslandEnabled()
+    binding.tvShizukuState.text = ShizukuXmsfHelper.statusLabel(requireContext())
 
     syncing = false
   }
@@ -133,5 +138,51 @@ class LyricSettingsFragment :
         Intent(IntentActions.SUPER_ISLAND_SETTING).setPackage(context.packageName)
       )
     }
+  }
+
+  /**
+   * Shizuku 入口：
+   * - 未安装：打开官网；
+   * - 未运行：拉起 Shizuku App；
+   * - 未授权：弹授权框；
+   * - 已授权：提示无需重复操作。
+   */
+  private fun onShizukuClicked() {
+    val context = requireContext()
+    when {
+      !ShizukuXmsfHelper.isShizukuInstalled(context) -> {
+        toast("请先安装 Shizuku")
+        openUrl("https://shizuku.rikka.app/")
+      }
+
+      !ShizukuXmsfHelper.isBinderAlive() -> {
+        toast("请先启动 Shizuku")
+        val launched = runCatching {
+          context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
+            ?.let { startActivity(it) }
+        }.getOrNull()
+        if (launched == null) {
+          openUrl("https://shizuku.rikka.app/")
+        }
+      }
+
+      ShizukuXmsfHelper.hasPermission() -> toast("已授权，兼容模式已开启")
+
+      else -> ShizukuXmsfHelper.requestPermission(requireActivity()) { granted ->
+        if (!isAdded) {
+          return@requestPermission
+        }
+        toast(
+          if (granted) "Shizuku 已授权，超级岛兼容模式已开启"
+          else "未授权，超级岛兼容模式保持关闭"
+        )
+        syncUi()
+      }
+    }
+  }
+
+  private fun openUrl(url: String) {
+    runCatching { startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+      .onFailure { toast("没有找到可用的浏览器") }
   }
 }
