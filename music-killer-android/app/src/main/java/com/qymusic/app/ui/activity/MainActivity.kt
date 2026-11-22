@@ -67,6 +67,10 @@ import java.io.File
 
 class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main), Player.Listener {
 
+  private companion object {
+    const val ACTION_SHOW_LYRICS = "ACTION_SHOW_LYRICS"
+  }
+
   private val mainViewModel by viewModels<MainViewModel>()
 
   private lateinit var bottomBarBehavior: BottomSheetBehavior<LinearLayout>
@@ -90,6 +94,11 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
 
   /** 底部播放栏当前是否可见（没有开始播放歌曲时隐藏） */
   private var bottomBarVisible = false
+
+  /** applyBottomMetrics 去重缓存，避免每次切换页面都重复改布局参数 */
+  private var lastPeekHeight = -1
+  private var lastNavReserve = -1
+  private var lastPlayerPadding = -1
 
   /** 底部导航栏是否显示：只剩一个模块时隐藏整条导航 */
   private var bottomNavVisible = true
@@ -287,6 +296,26 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     }
   }
 
+  override fun onNewIntent(intent: Intent) {
+    super.onNewIntent(intent)
+    setIntent(intent)
+    handleLaunchIntent(intent)
+  }
+
+  /** 通知栏「歌词」按钮：直接切到歌词页并展开为全屏 */
+  private fun handleLaunchIntent(intent: Intent?) {
+    if (intent?.action != ACTION_SHOW_LYRICS) {
+      return
+    }
+    intent.action = null
+    binding.vpMusic.setCurrentItem(1, false)
+    binding.root.postDelayed({
+      if (!isFinishing && !isDestroyed) {
+        mainViewModel.changeBottomBarExpand(true)
+      }
+    }, 350)
+  }
+
   /**
    * 进程仍存活时的界面恢复。
    *
@@ -360,6 +389,7 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     applyDefaultStartPage(navController, savedInstanceState)
     // 进程仍存活、只是 Activity 被系统销毁时：恢复上次页面，不重新加载
     restoreUiState(navController, savedInstanceState)
+    handleLaunchIntent(intent)
   }
 
   /**
@@ -415,7 +445,31 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     visible.forEach { module ->
       menu.add(0, module.id, 0, module.title).setIcon(module.icon)
     }
-    binding.bottomNav.setupWithNavController(navController)
+    // 多返回栈：切换底栏时保存/恢复各模块页面，避免每次切回首页/云端都重建并重新加载
+    binding.bottomNav.setOnItemSelectedListener { item ->
+      if (item.itemId == navController.currentDestination?.id) {
+        return@setOnItemSelectedListener true
+      }
+      val options = androidx.navigation.NavOptions.Builder()
+        .setLaunchSingleTop(true)
+        .setRestoreState(true)
+        .setPopUpTo(navController.graph.startDestinationId, false, true)
+        .build()
+      runCatching { navController.navigate(item.itemId, null, options) }
+      true
+    }
+    navController.addOnDestinationChangedListener { _, destination, _ ->
+      val menu = binding.bottomNav.menu
+      for (index in 0 until menu.size()) {
+        val menuItem = menu.getItem(index)
+        if (menuItem.itemId == destination.id) {
+          if (!menuItem.isChecked) {
+            menuItem.isChecked = true
+          }
+          break
+        }
+      }
+    }
 
     // 当前停留在被隐藏的模块（例如隐藏首页后仍停在首页）时，切到第一个可见模块
     ensureVisibleDestination(navController)
@@ -458,19 +512,33 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
       return
     }
     val navReserve = if (bottomNavVisible && currentIsModule) bottomNavHeight else 0
-    bottomBarBehavior.peekHeight = playerBarHeight + navReserve + navigationBarInset
-    binding.bottomBar.updatePadding(bottom = navReserve + navigationBarInset)
-    binding.navHostFragment.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-      bottomMargin = navReserve + navigationBarInset
+    val peekHeight = playerBarHeight + navReserve + navigationBarInset
+    if (peekHeight != lastPeekHeight) {
+      lastPeekHeight = peekHeight
+      bottomBarBehavior.peekHeight = peekHeight
     }
-    binding.navHostFragment.updatePadding(
-      bottom = if (bottomBarVisible) playerBarHeight else 0
-    )
+    if (navReserve != lastNavReserve) {
+      lastNavReserve = navReserve
+      binding.bottomBar.updatePadding(bottom = navReserve + navigationBarInset)
+      binding.navHostFragment.updateLayoutParams<ViewGroup.MarginLayoutParams> {
+        bottomMargin = navReserve + navigationBarInset
+      }
+    }
+    val playerPadding = if (bottomBarVisible) playerBarHeight else 0
+    if (playerPadding != lastPlayerPadding) {
+      lastPlayerPadding = playerPadding
+      binding.navHostFragment.updatePadding(bottom = playerPadding)
+    }
   }
 
   /** 底部导航只在「有多个模块 + 停留在一级页 + 播放页未展开」时显示 */
   private fun syncBottomNavVisibility() {
     val visible = bottomNavVisible && currentIsModule && !playerExpanded
+    if (visible && binding.bottomNav.visibility == View.VISIBLE &&
+      binding.bottomNav.alpha == 1f && binding.bottomNav.translationY == 0f
+    ) {
+      return
+    }
     binding.bottomNav.animate().cancel()
     if (visible) {
       binding.bottomNav.visibility = View.VISIBLE
@@ -586,6 +654,16 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
             syncBottomNavVisibility()
             applyBottomMetrics()
           }
+          // 歌词/播放页全屏：隐藏系统栏，避免状态栏和导航栏区域透出下层页面
+          windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
+          windowInsetsController.systemBarsBehavior =
+            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+          binding.bottomBar.setBackgroundColor(
+            com.google.android.material.color.MaterialColors.getColor(
+              binding.bottomBar,
+              com.google.android.material.R.attr.colorSurface
+            )
+          )
           // 开启返回监听
           onBackPressedCallback.isEnabled = true
           // 如果当前不是亮色状态栏
@@ -597,6 +675,8 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
             isLightStatusBar = true
           }
         } else if (state == BottomSheetBehavior.STATE_COLLAPSED) {
+          windowInsetsController.show(WindowInsetsCompat.Type.systemBars())
+          binding.bottomBar.setBackgroundColor(Color.TRANSPARENT)
           mainViewModel.changeBottomBarExpand(false)
           onBackPressedCallback.isEnabled = false
           if (playerExpanded) {

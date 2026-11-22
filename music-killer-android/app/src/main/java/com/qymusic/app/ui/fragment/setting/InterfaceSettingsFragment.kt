@@ -6,6 +6,7 @@ import androidx.navigation.fragment.findNavController
 import com.drake.tooltip.toast
 import com.qymusic.app.R
 import com.qymusic.app.base.BaseMusicAppbarFragment
+import com.qymusic.app.config.NavModules
 import com.qymusic.app.config.SPConfig
 import com.qymusic.app.databinding.FragmentInterfaceSettingsBinding
 
@@ -47,6 +48,10 @@ class InterfaceSettingsFragment :
     initThemeToggle()
     initCatalogToggle()
 
+    binding.itemNavManager.setOnClickListener {
+      findNavController().navigate(R.id.navManagerFragment)
+    }
+
     binding.itemCloudManager.setOnClickListener {
       findNavController().navigate(R.id.moduleManagerFragment)
     }
@@ -63,6 +68,8 @@ class InterfaceSettingsFragment :
     super.onResume()
     syncTheme()
     updateCatalogButtons()
+    binding.tvNavManagerState.text =
+      "${NavModules.visible().size} 个模块显示在底栏，点击管理"
     binding.tvCloudManagerState.text =
       "${SPConfig.enabledCloudPlatforms().size} 个平台已启用，点击管理"
     binding.tvSearchSourceState.text =

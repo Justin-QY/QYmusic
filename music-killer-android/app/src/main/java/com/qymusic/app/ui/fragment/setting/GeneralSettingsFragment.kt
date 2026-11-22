@@ -7,7 +7,6 @@ import com.drake.tooltip.toast
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.qymusic.app.R
 import com.qymusic.app.base.BaseMusicAppbarFragment
-import com.qymusic.app.config.NavModules
 import com.qymusic.app.config.SPConfig
 import com.qymusic.app.databinding.FragmentGeneralSettingsBinding
 
@@ -47,8 +46,6 @@ class GeneralSettingsFragment :
     fun summary(): String =
       "歌词${lyricSizeLabel()}"
 
-    /** 底部导航入口摘要：当前显示在底栏的模块数 */
-    fun navSummary(): String = "${NavModules.visible().size} 个模块显示在底栏，点击管理"
   }
 
   /** 同步 UI 时屏蔽控件回调，避免把默认值写回 SPConfig */
@@ -62,9 +59,6 @@ class GeneralSettingsFragment :
 
     binding.itemLyricSettings.setOnClickListener {
       findNavController().navigate(R.id.action_general_lyrics)
-    }
-    binding.itemNavManager.setOnClickListener {
-      findNavController().navigate(R.id.action_general_nav)
     }
   }
 
@@ -81,7 +75,6 @@ class GeneralSettingsFragment :
 
     binding.tvLyricSettingsState.text = lyricSummary()
 
-    binding.tvNavManagerState.text = navSummary()
 
     syncing = false
   }
