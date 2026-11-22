@@ -1,48 +1,35 @@
 package com.qymusic.app.ui.fragment.favorite
 
-import android.os.Bundle
-import android.view.LayoutInflater
-import android.view.View
-import android.view.ViewGroup
 import androidx.core.os.bundleOf
 import androidx.core.view.isVisible
-import androidx.fragment.app.Fragment
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.fragment.findNavController
 import com.drake.brv.utils.models
 import com.drake.brv.utils.setup
+import com.drake.net.Get
+import com.drake.tooltip.toast
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.launch
 import com.qymusic.app.R
+import com.qymusic.app.base.BaseMusicNavFragment
+import com.qymusic.app.config.Api
 import com.qymusic.app.databinding.FragmentFavoriteArtistsBinding
 import com.qymusic.app.model.ArtistModel
+import com.qymusic.app.model.MusicModel
+import com.qymusic.app.model.Page
 import com.qymusic.app.utils.FavoriteRepository
 import com.qymusic.app.utils.preserveScrollState
 
 /**
- * 收藏歌手分页：点击进入歌手详情。
+ * 收藏歌手分页：点击进入详情，长按可取消收藏或把歌手歌曲加入播放列表。
  */
-class FavoriteArtistsFragment : Fragment(R.layout.fragment_favorite_artists) {
+class FavoriteArtistsFragment :
+  BaseMusicNavFragment<FragmentFavoriteArtistsBinding>(R.layout.fragment_favorite_artists) {
 
-  private var _binding: FragmentFavoriteArtistsBinding? = null
+  override fun openMediaController(): Boolean = true
 
-  private val binding get() = _binding!!
-
-  override fun onCreateView(
-    inflater: LayoutInflater,
-    container: ViewGroup?,
-    savedInstanceState: Bundle?,
-  ): View {
-    _binding = FragmentFavoriteArtistsBinding.inflate(inflater, container, false)
-    return binding.root
-  }
-
-  override fun onDestroyView() {
-    super.onDestroyView()
-    _binding = null
-  }
-
-  override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
-    super.onViewCreated(view, savedInstanceState)
+  override fun initView() {
+    binding.rv.preserveScrollState("favorite_artists")
 
     binding.rv.setup {
       addType<ArtistModel>(R.layout.item_grid_artist)
@@ -54,13 +41,22 @@ class FavoriteArtistsFragment : Fragment(R.layout.fragment_favorite_artists) {
           bundleOf("artist" to model),
         )
       }
-    }
 
-    binding.rv.preserveScrollState("favorite_artists")
+      R.id.item_artist.onLongClick {
+        showActions(getModel<ArtistModel>())
+      }
+    }
+  }
+
+  override fun initData() {
   }
 
   override fun onResume() {
     super.onResume()
+    reload()
+  }
+
+  private fun reload() {
     viewLifecycleOwner.lifecycleScope.launch {
       val artists = FavoriteRepository.artists().map {
         ArtistModel(
@@ -74,6 +70,46 @@ class FavoriteArtistsFragment : Fragment(R.layout.fragment_favorite_artists) {
       }
       binding.rv.models = artists.toMutableList()
       binding.tvEmpty.isVisible = artists.isEmpty()
+    }
+  }
+
+  private fun showActions(model: ArtistModel) {
+    MaterialAlertDialogBuilder(requireContext())
+      .setTitle(model.name.ifBlank { "歌手" })
+      .setItems(arrayOf("取消收藏", "加入播放列表")) { _, which ->
+        when (which) {
+          0 -> removeFavorite(model)
+          1 -> addToQueue(model)
+        }
+      }
+      .setNegativeButton("取消", null)
+      .show()
+  }
+
+  private fun removeFavorite(model: ArtistModel) {
+    viewLifecycleOwner.lifecycleScope.launch {
+      FavoriteRepository.toggleArtist(model)
+      toast("已取消收藏")
+      reload()
+    }
+  }
+
+  private fun addToQueue(model: ArtistModel) {
+    viewLifecycleOwner.lifecycleScope.launch {
+      val songs = runCatching {
+        Get<Page<MusicModel>>(Api.catalog(Api.ARTIST_MUSIC)) {
+          addQuery("artistId", model.id)
+          addQuery("pageNo", 1)
+          addQuery("pageSize", 100)
+        }.await().data
+      }.getOrNull().orEmpty()
+
+      if (songs.isEmpty()) {
+        toast("歌手暂无可用歌曲")
+        return@launch
+      }
+      addPlaylist(songs, clear = false)
+      toast("已加入播放列表")
     }
   }
 }

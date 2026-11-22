@@ -96,6 +96,9 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
   private var bottomBarVisible = false
 
   /** applyBottomMetrics 去重缓存，避免每次切换页面都重复改布局参数 */
+  /** 正在切换的底栏目标，防止快速连点导致导航失败后卡住 */
+  private var pendingTabId = 0
+
   private var lastPeekHeight = -1
   private var lastNavReserve = -1
   private var lastSheetPadding = -1
@@ -448,18 +451,42 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     }
     // 多返回栈：切换底栏时保存/恢复各模块页面，避免每次切回首页/云端都重建并重新加载
     binding.bottomNav.setOnItemSelectedListener { item ->
-      if (item.itemId == navController.currentDestination?.id) {
+      val current = navController.currentDestination?.id
+      if (item.itemId == current || item.itemId == pendingTabId) {
         return@setOnItemSelectedListener true
       }
-      val options = androidx.navigation.NavOptions.Builder()
-        .setLaunchSingleTop(true)
-        .setRestoreState(true)
-        .setPopUpTo(navController.graph.startDestinationId, false, true)
-        .build()
-      runCatching { navController.navigate(item.itemId, null, options) }
+      pendingTabId = item.itemId
+
+      val restored = runCatching {
+        val options = androidx.navigation.NavOptions.Builder()
+          .setLaunchSingleTop(true)
+          .setRestoreState(true)
+          .setPopUpTo(navController.graph.startDestinationId, false, true)
+          .build()
+        navController.navigate(item.itemId, null, options)
+      }.isSuccess
+
+      if (!restored) {
+        // 恢复旧返回栈失败时退回普通切换，避免底栏被选中但页面没动
+        runCatching {
+          val options = androidx.navigation.NavOptions.Builder()
+            .setLaunchSingleTop(true)
+            .setPopUpTo(navController.graph.startDestinationId, true)
+            .build()
+          navController.navigate(item.itemId, null, options)
+        }
+      }
+      binding.bottomNav.post {
+        if (navController.currentDestination?.id != item.itemId) {
+          pendingTabId = 0
+        }
+      }
       true
     }
     navController.addOnDestinationChangedListener { _, destination, _ ->
+      if (destination.id == pendingTabId) {
+        pendingTabId = 0
+      }
       val menu = binding.bottomNav.menu
       for (index in 0 until menu.size()) {
         val menuItem = menu.getItem(index)
@@ -525,7 +552,7 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
       }
     }
     // 展开全屏时不再给底栏留位置，否则歌词页底部会露出一条导航栏空白
-    val sheetPadding = if (playerExpanded) navigationBarInset else navReserve + navigationBarInset
+    val sheetPadding = if (playerExpanded) 0 else navReserve + navigationBarInset
     if (sheetPadding != lastSheetPadding) {
       lastSheetPadding = sheetPadding
       binding.bottomBar.updatePadding(bottom = sheetPadding)
@@ -560,7 +587,7 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
         .setDuration(160)
         .withEndAction {
           if (!bottomNavVisible || !currentIsModule || playerExpanded) {
-            binding.bottomNav.visibility = View.INVISIBLE
+            binding.bottomNav.visibility = View.GONE
           }
         }
         .start()
