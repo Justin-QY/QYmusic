@@ -1,6 +1,7 @@
 package com.qymusic.app.ui.fragment.setting
 
 import android.content.Intent
+import android.view.View
 import android.graphics.Color
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.net.toUri
@@ -78,8 +79,13 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         binding.tvQualityValue.text =
             MusicBridge.getBridgeForLevel(SPConfig.currentBridge()).displayName
 
-        binding.tvUpdateState.text =
+        val hasUpdate = AppUpdater.hasPendingUpdate
+        binding.dotUpdate.visibility = if (hasUpdate) View.VISIBLE else View.GONE
+        binding.tvUpdateState.text = if (hasUpdate && AppUpdater.pendingVersionName.isNotBlank()) {
+            "发现新版本 ${AppUpdater.pendingVersionName} · 点击更新"
+        } else {
             "当前 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · 点击检查"
+        }
 
 
     }

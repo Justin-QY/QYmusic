@@ -57,6 +57,15 @@ object AppUpdater {
     /** 同一进程内避免启动检查和手动检查同时进行 */
     private var checking = false
 
+    /** 启动检查发现新版本时置位，设置页据此显示红点 */
+    @Volatile
+    var hasPendingUpdate: Boolean = false
+        private set
+
+    @Volatile
+    var pendingVersionName: String = ""
+        private set
+
     private sealed class CheckResult {
         class Update(val model: UpdateModel) : CheckResult()
         object Latest : CheckResult()
@@ -89,7 +98,12 @@ object AppUpdater {
         activity.lifecycleScope.launch {
             try {
                 when (val result = resolve()) {
-                    is CheckResult.Update -> showUpdateDialog(activity, result.model)
+                    is CheckResult.Update -> {
+                        // 保留红点提示，同时恢复启动时自动弹窗
+                        hasPendingUpdate = true
+                        pendingVersionName = result.model.versionName
+                        showUpdateDialog(activity, result.model)
+                    }
                     is CheckResult.Failed -> if (manual) {
                         showCheckFailedDialog(
                             activity = activity,
@@ -100,6 +114,7 @@ object AppUpdater {
                     }
 
                     else -> if (manual) {
+                        clearPendingUpdate()
                         toast("当前已是最新版本")
                     }
                 }
@@ -119,6 +134,11 @@ object AppUpdater {
                 checking = false
             }
         }
+    }
+
+    private fun clearPendingUpdate() {
+        hasPendingUpdate = false
+        pendingVersionName = ""
     }
 
     // ------------------------------------------------------------------ 版本判定

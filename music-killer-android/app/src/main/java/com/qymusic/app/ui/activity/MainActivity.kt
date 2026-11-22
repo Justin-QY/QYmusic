@@ -98,6 +98,7 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
   /** applyBottomMetrics 去重缓存，避免每次切换页面都重复改布局参数 */
   private var lastPeekHeight = -1
   private var lastNavReserve = -1
+  private var lastSheetPadding = -1
   private var lastPlayerPadding = -1
 
   /** 底部导航栏是否显示：只剩一个模块时隐藏整条导航 */
@@ -519,10 +520,15 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     }
     if (navReserve != lastNavReserve) {
       lastNavReserve = navReserve
-      binding.bottomBar.updatePadding(bottom = navReserve + navigationBarInset)
       binding.navHostFragment.updateLayoutParams<ViewGroup.MarginLayoutParams> {
         bottomMargin = navReserve + navigationBarInset
       }
+    }
+    // 展开全屏时不再给底栏留位置，否则歌词页底部会露出一条导航栏空白
+    val sheetPadding = if (playerExpanded) navigationBarInset else navReserve + navigationBarInset
+    if (sheetPadding != lastSheetPadding) {
+      lastSheetPadding = sheetPadding
+      binding.bottomBar.updatePadding(bottom = sheetPadding)
     }
     val playerPadding = if (bottomBarVisible) playerBarHeight else 0
     if (playerPadding != lastPlayerPadding) {
