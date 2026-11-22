@@ -1,0 +1,47 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <data>
+
+        <import type="com.drake.engine.databinding.GlideDataBindingComponent" />
+
+        <variable
+            name="m"
+            type="com.qymusic.app.model.PlayListModel" />
+    </data>
+
+    <LinearLayout
+        android:id="@+id/item_daily_playlist"
+        android:layout_width="132dp"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackground"
+        android:orientation="vertical"
+        android:paddingEnd="12dp"
+        android:paddingBottom="6dp">
+
+        <ImageView
+            android:id="@+id/iv_daily_cover"
+            android:layout_width="match_parent"
+            android:layout_height="120dp"
+            android:contentDescription="封面"
+            android:scaleType="centerCrop"
+            corner="@{10}"
+            holder="@{@drawable/ic_holder}"
+            img="@{m.img}"
+            tools:src="@tools:sample/avatars" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:text="@{m.name}"
+            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+            tools:text="每日推荐歌单" />
+
+    </LinearLayout>
+
+</layout>

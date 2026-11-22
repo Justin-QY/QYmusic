@@ -22,7 +22,6 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
 
     companion object {
         private const val WEBSITE = "https://www.qyder.com"
-        private const val EMAIL = "qyder8@gmail.com"
     }
 
     override fun initView() {
@@ -32,7 +31,6 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         baseContentBinding.toolbar.setBackgroundColor(Color.TRANSPARENT)
 
         binding.itemWebsite.setOnClickListener { openWebsite() }
-        binding.itemContact.setOnClickListener { sendEmail() }
         binding.itemCheckUpdate.setOnClickListener {
             AppUpdater.check(requireActivity() as AppCompatActivity, manual = true)
         }
@@ -80,6 +78,9 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         binding.tvQualityValue.text =
             MusicBridge.getBridgeForLevel(SPConfig.currentBridge()).displayName
 
+        binding.tvUpdateState.text =
+            "当前 ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE}) · 点击检查"
+
 
     }
 
@@ -111,11 +112,4 @@ class SettingFragment : BaseMusicAppbarFragment<FragmentSettingBinding>(R.layout
         }
     }
 
-    private fun sendEmail() {
-        try {
-            startActivity(Intent(Intent.ACTION_SENDTO, "mailto:$EMAIL".toUri()))
-        } catch (e: Exception) {
-            toast("没有找到可用的邮件应用")
-        }
-    }
 }

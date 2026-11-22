@@ -207,7 +207,11 @@ class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.f
         loadingScripts = true
         viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val list = Get<List<LxScriptModel>>(Api.LX_SCRIPTS).await()
+                val all = Get<List<LxScriptModel>>(Api.LX_SCRIPTS).await()
+                // 暂时只展示「星海」，服务端其余脚本先不上
+                val list = all.filter {
+                    it.name.contains("星海") || it.id.contains("xinghai", ignoreCase = true)
+                }
                 serverScriptCount = list.size
                 renderScripts(list)
             } catch (e: Exception) {

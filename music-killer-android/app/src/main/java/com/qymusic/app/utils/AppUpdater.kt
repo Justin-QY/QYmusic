@@ -4,6 +4,9 @@ import android.app.Activity
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.view.LayoutInflater
+import android.widget.Button
+import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
 import com.drake.net.Get
@@ -19,6 +22,7 @@ import kotlinx.coroutines.withContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import com.qymusic.app.BuildConfig
+import com.qymusic.app.R
 import com.qymusic.app.config.Api
 import com.qymusic.app.model.UpdateModel
 import okhttp3.OkHttpClient
@@ -208,20 +212,23 @@ object AppUpdater {
             append(model.changelog.ifBlank { "修复问题并优化体验。" })
         }
 
+        // 自定义底部按钮：三颗按钮横排，避免系统默认把三个按钮拆成竖排
+        val view = LayoutInflater.from(activity).inflate(R.layout.dialog_update, null)
+        view.findViewById<TextView>(R.id.tv_update_message).text = message
+
         val dialog = MaterialAlertDialogBuilder(activity)
             .setTitle("发现新版本 ${model.versionName.ifBlank { "" }}".trim())
-            .setMessage(message)
-            .setPositiveButton("立即更新", null)
-            .setNegativeButton("稍后", null)
-            .setNeutralButton("去 GitHub 下载", null)
+            .setView(view)
             .create()
         dialog.show()
-        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
-            startDownload(activity, model, dialog)
-        }
-        // 备用入口：直接打开 GitHub Releases，弹窗不关闭，仍可继续「立即更新」
-        dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEUTRAL).setOnClickListener {
+
+        view.findViewById<Button>(R.id.btn_update_later).setOnClickListener { dialog.dismiss() }
+        view.findViewById<Button>(R.id.btn_update_github).setOnClickListener {
             openGitHubReleases(activity)
+        }
+        val updateButton = view.findViewById<Button>(R.id.btn_update_now)
+        updateButton.setOnClickListener {
+            startDownload(activity, model, updateButton)
         }
     }
 
@@ -275,9 +282,8 @@ object AppUpdater {
     private fun startDownload(
         activity: AppCompatActivity,
         model: UpdateModel,
-        dialog: androidx.appcompat.app.AlertDialog,
+        button: Button,
     ) {
-        val button = dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE)
         val dir = File(activity.cacheDir, "update").apply { mkdirs() }
         val fileName = "qy-music-${model.versionName.ifBlank { "latest" }}.apk"
         val target = File(dir, fileName)

@@ -11,6 +11,7 @@ import androidx.core.view.MenuProvider
 import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.CircleCrop
 import com.drake.brv.utils.grid
@@ -28,6 +29,7 @@ import com.qymusic.app.config.SPConfig
 import com.qymusic.app.databinding.FragmentCloudBinding
 import com.qymusic.app.model.ArtistModel
 import com.qymusic.app.model.MusicModel
+import com.qymusic.app.model.Page
 import com.qymusic.app.model.PlayListModel
 import com.qymusic.app.model.setupMusicRv
 import com.qymusic.app.ui.activity.PlatformLoginActivity
@@ -87,6 +89,18 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
     override fun initView() {
         requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
         binding.rvLiked.setupMusicRv(this)
+
+        binding.rvDailyPlaylists.layoutManager =
+            LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
+        binding.rvDailyPlaylists.setup {
+            addType<PlayListModel>(R.layout.item_daily_playlist)
+            R.id.item_daily_playlist.onClick {
+                navController.navigate(
+                    R.id.playlistInfoFragment,
+                    bundleOf("playlist" to getModel<PlayListModel>())
+                )
+            }
+        }
 
         binding.rvPlaylists.grid(3).setup {
             addType<PlayListModel>(R.layout.item_playlist)
@@ -176,6 +190,7 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
             binding.cardProfile.isVisible = false
             binding.cardKugouVip.isVisible = false
             binding.groupContent.isVisible = false
+            binding.rvDailyPlaylists.models = emptyList<PlayListModel>()
             binding.rvLiked.models = emptyList<MusicModel>()
             binding.rvPlaylists.models = emptyList<PlayListModel>()
             binding.rvArtists.models = emptyList<ArtistModel>()
@@ -219,6 +234,7 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         binding.rowArtists.visibility = if (isNetease) View.VISIBLE else View.GONE
 
         if (!logged) {
+            binding.rvDailyPlaylists.models = emptyList<PlayListModel>()
             binding.rvLiked.models = emptyList<MusicModel>()
             binding.rvPlaylists.models = emptyList<PlayListModel>()
             binding.rvArtists.models = emptyList<ArtistModel>()
@@ -350,6 +366,11 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
                         }
                     }.await()
                 }
+                val daily = async {
+                    Get<Page<PlayListModel>>(Api.catalog(Api.PLAYLIST_RECOMMEND)) {
+                        addQuery("id", "rcm")
+                    }.await().data
+                }
                 val artists = if (isNetease) {
                     async {
                         Get<List<ArtistModel>>(Api.NETEASE_ARTISTS) {
@@ -364,6 +385,7 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
                 if (platform != target) {
                     return@launch
                 }
+                binding.rvDailyPlaylists.models = daily.await().take(10)
                 binding.rvLiked.models = liked.await().take(5)
                 binding.rvPlaylists.models = playlists.await().take(6)
                 binding.rvArtists.models = artists?.await().orEmpty().take(6)
@@ -403,6 +425,7 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
 
         loadJob?.cancel()
         invalidateData()
+        binding.rvDailyPlaylists.models = emptyList<PlayListModel>()
         binding.rvLiked.models = emptyList<MusicModel>()
         binding.rvPlaylists.models = emptyList<PlayListModel>()
         binding.rvArtists.models = emptyList<ArtistModel>()
