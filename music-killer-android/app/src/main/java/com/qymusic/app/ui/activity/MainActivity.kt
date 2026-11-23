@@ -373,7 +373,15 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
 
     val navController = navHostFragment.navController
 
-    windowInsetsController = WindowCompat.getInsetsController(window, binding.root)
+    windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+
+    // 页面铺满到系统栏区域，去掉系统导航栏的对比度遮罩/分隔线
+    window.statusBarColor = Color.TRANSPARENT
+    window.navigationBarColor = Color.TRANSPARENT
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+      window.isStatusBarContrastEnforced = false
+      window.isNavigationBarContrastEnforced = false
+    }
 
     navController.addOnDestinationChangedListener { controller, destination, arguments ->
       UiStateStore.lastNavDestination = destination.id
@@ -781,6 +789,16 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     }
   }
 
+  private fun setFullscreen(fullscreen: Boolean) {
+    if (fullscreen) {
+      windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
+      windowInsetsController.systemBarsBehavior =
+        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+    } else {
+      windowInsetsController.show(WindowInsetsCompat.Type.systemBars())
+    }
+  }
+
   /**
    * 应用底部播放栏状态：没有播放歌曲时整条隐藏，底部内容也不再留出空位。
    */
@@ -792,9 +810,11 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     )
 
     if (state.isVisible) {
+      setFullscreen(state.isExpanded)
       bottomBarBehavior.state =
         if (state.isExpanded) BottomSheetBehavior.STATE_EXPANDED else BottomSheetBehavior.STATE_COLLAPSED
     } else {
+      setFullscreen(false)
       if (bottomBarBehavior.state != BottomSheetBehavior.STATE_COLLAPSED) {
         bottomBarBehavior.state = BottomSheetBehavior.STATE_COLLAPSED
       }
