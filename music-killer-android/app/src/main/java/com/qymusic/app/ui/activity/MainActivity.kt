@@ -382,6 +382,14 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
       window.isStatusBarContrastEnforced = false
       window.isNavigationBarContrastEnforced = false
     }
+    // 系统栏区域铺同样的 surface 底色，避免底部露出一条异色空白
+    runCatching {
+      val surface = com.google.android.material.color.MaterialColors.getColor(
+        binding.root,
+        com.google.android.material.R.attr.colorSurface
+      )
+      window.setBackgroundDrawable(android.graphics.drawable.ColorDrawable(surface))
+    }
 
     navController.addOnDestinationChangedListener { controller, destination, arguments ->
       UiStateStore.lastNavDestination = destination.id
@@ -695,10 +703,7 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
             syncBottomNavVisibility()
             applyBottomMetrics()
           }
-          // 歌词/播放页全屏：隐藏系统栏，避免状态栏和导航栏区域透出下层页面
-          windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
-          windowInsetsController.systemBarsBehavior =
-            WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+          // 不隐藏系统栏，避免 insets 变化导致页面整体上移；用透明系统栏铺满即可
           binding.bottomBar.setBackgroundColor(
             com.google.android.material.color.MaterialColors.getColor(
               binding.bottomBar,
@@ -716,7 +721,6 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
             isLightStatusBar = true
           }
         } else if (state == BottomSheetBehavior.STATE_COLLAPSED) {
-          windowInsetsController.show(WindowInsetsCompat.Type.systemBars())
           binding.bottomBar.setBackgroundColor(Color.TRANSPARENT)
           mainViewModel.changeBottomBarExpand(false)
           onBackPressedCallback.isEnabled = false
@@ -790,17 +794,11 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
   }
 
   private fun setFullscreen(fullscreen: Boolean) {
-    // initData 可能早于 onCreate 初始化，这里按需兜底
+    // 采用透明系统栏铺满，不隐藏系统栏；隐藏会改变 insets，导致页面整体上移
     if (!this::windowInsetsController.isInitialized) {
       windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
     }
-    if (fullscreen) {
-      windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
-      windowInsetsController.systemBarsBehavior =
-        WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-    } else {
-      windowInsetsController.show(WindowInsetsCompat.Type.systemBars())
-    }
+    windowInsetsController.show(WindowInsetsCompat.Type.systemBars())
   }
 
   /**
