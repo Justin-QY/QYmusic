@@ -33,6 +33,7 @@ import com.qymusic.app.model.Page
 import com.qymusic.app.model.PlayListModel
 import com.qymusic.app.model.setupMusicRv
 import com.qymusic.app.ui.activity.PlatformLoginActivity
+import com.qymusic.app.utils.CloudDataCache
 import com.qymusic.app.utils.SleepTimerDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
@@ -331,6 +332,29 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
 
         val cookie = cookieOf(target)
         val uid = uidOf(target)
+        val isNeteaseTarget = target == PlatformLoginActivity.PLATFORM_NETEASE
+
+        // 先渲染缓存，进入云端页立即有内容
+        CloudDataCache.get<MusicModel>(CloudDataCache.likedKey(target))
+            ?.let { binding.rvLiked.models = it.take(5) }
+        CloudDataCache.get<PlayListModel>(CloudDataCache.playlistsKey(target))
+            ?.let { binding.rvPlaylists.models = it.take(6) }
+        CloudDataCache.get<ArtistModel>(CloudDataCache.artistsKey(target))
+            ?.let { binding.rvArtists.models = it.take(6) }
+        CloudDataCache.get<PlayListModel>(CloudDataCache.DAILY_KEY)
+            ?.let { binding.rvDailyPlaylists.models = it.take(10) }
+
+        val likedKey = CloudDataCache.likedKey(target)
+        val playlistsKey = CloudDataCache.playlistsKey(target)
+        val artistsKey = CloudDataCache.artistsKey(target)
+        val allFresh = CloudDataCache.isFresh(likedKey) &&
+            CloudDataCache.isFresh(playlistsKey) &&
+            (!isNeteaseTarget || CloudDataCache.isFresh(artistsKey))
+        if (!force && allFresh) {
+            loadedPlatform = target
+            loadedAt = System.currentTimeMillis()
+            return
+        }
 
         loadJob = viewLifecycleOwner.lifecycleScope.launch {
             try {
@@ -385,10 +409,22 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
                 if (platform != target) {
                     return@launch
                 }
-                binding.rvDailyPlaylists.models = daily.await().take(10)
-                binding.rvLiked.models = liked.await().take(5)
-                binding.rvPlaylists.models = playlists.await().take(6)
-                binding.rvArtists.models = artists?.await().orEmpty().take(6)
+                val dailyData = daily.await()
+                val likedData = liked.await()
+                val playlistsData = playlists.await()
+                val artistsData = artists?.await().orEmpty()
+
+                binding.rvDailyPlaylists.models = dailyData.take(10)
+                binding.rvLiked.models = likedData.take(5)
+                binding.rvPlaylists.models = playlistsData.take(6)
+                binding.rvArtists.models = artistsData.take(6)
+
+                CloudDataCache.put(CloudDataCache.DAILY_KEY, dailyData)
+                CloudDataCache.put(likedKey, likedData)
+                CloudDataCache.put(playlistsKey, playlistsData)
+                if (isNeteaseTarget) {
+                    CloudDataCache.put(artistsKey, artistsData)
+                }
                 loadedPlatform = target
                 loadedAt = System.currentTimeMillis()
             } catch (e: kotlinx.coroutines.CancellationException) {
@@ -425,6 +461,7 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
 
         loadJob?.cancel()
         invalidateData()
+        CloudDataCache.clearPlatform(platform)
         binding.rvDailyPlaylists.models = emptyList<PlayListModel>()
         binding.rvLiked.models = emptyList<MusicModel>()
         binding.rvPlaylists.models = emptyList<PlayListModel>()

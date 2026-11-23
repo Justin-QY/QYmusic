@@ -19,6 +19,7 @@ import com.qymusic.app.model.MusicModel
 import com.qymusic.app.model.PlayListModel
 import com.qymusic.app.model.setupMusicRv
 import com.qymusic.app.ui.activity.PlatformLoginActivity
+import com.qymusic.app.utils.CloudDataCache
 
 /**
  * 云端「查看全部」列表：喜欢 / 歌单 / 歌手
@@ -80,6 +81,13 @@ class CloudAllFragment : BaseMusicAppbarFragment<FragmentCloudAllBinding>(R.layo
             try {
                 when (type) {
                     "liked" -> {
+                        val cacheKey = CloudDataCache.likedKey(platform)
+                        CloudDataCache.get<MusicModel>(cacheKey)?.let { cached ->
+                            binding.rvAll.models = cached.toMutableList()
+                            if (CloudDataCache.isFresh(cacheKey)) {
+                                return@launch
+                            }
+                        }
                         val url = when (platform) {
                             PlatformLoginActivity.PLATFORM_QQ -> Api.QQ_LIKED
                             PlatformLoginActivity.PLATFORM_KUGOU -> Api.KUGOU_LIKED
@@ -96,8 +104,16 @@ class CloudAllFragment : BaseMusicAppbarFragment<FragmentCloudAllBinding>(R.layo
                             }
                         }.await()
                         binding.rvAll.models = list
+                        CloudDataCache.put(CloudDataCache.likedKey(platform), list)
                     }
                     "playlists" -> {
+                        val cacheKey = CloudDataCache.playlistsKey(platform)
+                        CloudDataCache.get<PlayListModel>(cacheKey)?.let { cached ->
+                            binding.rvAll.models = cached.toMutableList()
+                            if (CloudDataCache.isFresh(cacheKey)) {
+                                return@launch
+                            }
+                        }
                         val url = when (platform) {
                             PlatformLoginActivity.PLATFORM_QQ -> Api.QQ_PLAYLISTS
                             PlatformLoginActivity.PLATFORM_KUGOU -> Api.KUGOU_PLAYLISTS
@@ -110,12 +126,21 @@ class CloudAllFragment : BaseMusicAppbarFragment<FragmentCloudAllBinding>(R.layo
                             }
                         }.await()
                         binding.rvAll.models = list
+                        CloudDataCache.put(CloudDataCache.playlistsKey(platform), list)
                     }
                     else -> {
+                        val cacheKey = CloudDataCache.artistsKey(platform)
+                        CloudDataCache.get<ArtistModel>(cacheKey)?.let { cached ->
+                            binding.rvAll.models = cached.toMutableList()
+                            if (CloudDataCache.isFresh(cacheKey)) {
+                                return@launch
+                            }
+                        }
                         val list = Get<List<ArtistModel>>(Api.NETEASE_ARTISTS) {
                             addQuery("cookie", cookie)
                         }.await()
                         binding.rvAll.models = list
+                        CloudDataCache.put(CloudDataCache.artistsKey(platform), list)
                     }
                 }
             } catch (e: Exception) {
