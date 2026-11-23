@@ -468,7 +468,7 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     // 多返回栈：切换底栏时保存/恢复各模块页面，避免每次切回首页/云端都重建并重新加载
     binding.bottomNav.setOnItemSelectedListener { item ->
       val current = navController.currentDestination?.id
-      if (item.itemId == current || item.itemId == pendingTabId) {
+      if (item.itemId == current) {
         return@setOnItemSelectedListener true
       }
       pendingTabId = item.itemId
@@ -500,9 +500,9 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
       true
     }
     navController.addOnDestinationChangedListener { _, destination, _ ->
-      if (destination.id == pendingTabId) {
-        pendingTabId = 0
-      }
+      // pendingTabId 只在切换瞬间有效；进入设置等子页面时必须清掉，
+      // 否则返回后点同一个底栏项会被旧值挡住
+      pendingTabId = 0
       val menu = binding.bottomNav.menu
       for (index in 0 until menu.size()) {
         val menuItem = menu.getItem(index)
