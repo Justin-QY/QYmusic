@@ -108,6 +108,10 @@ class FavoriteArtistsFragment :
         toast("歌手暂无可用歌曲")
         return@launch
       }
+      if (_mediaController == null) {
+        toast("播放器未就绪，请稍后再试")
+        return@launch
+      }
       addPlaylist(songs, clear = false)
       toast("已加入播放列表")
     }

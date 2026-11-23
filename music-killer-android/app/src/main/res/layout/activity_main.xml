@@ -29,6 +29,14 @@
             app:defaultNavHost="true"
             app:navGraph="@navigation/nav_graph" />
 
+        <View
+            android:id="@+id/bottom_fill"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_gravity="bottom"
+            android:background="?attr/colorSurface"
+            android:visibility="gone" />
+
         <com.google.android.material.bottomnavigation.BottomNavigationView
             android:id="@+id/bottom_nav"
             android:layout_width="match_parent"

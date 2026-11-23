@@ -59,6 +59,12 @@ import com.qymusic.app.download.DownloadService
 import com.qymusic.app.model.UpdateModel
 import com.qymusic.app.ui.fragment.play.LyricsFragment
 import com.qymusic.app.ui.fragment.play.MusicPlayFragment
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import androidx.media3.common.MediaItem
+import com.google.common.util.concurrent.MoreExecutors
+import com.qymusic.app.service.MusicService
+import com.qymusic.app.utils.getMusicInfo
 import com.qymusic.app.utils.AppUpdater
 import com.qymusic.app.utils.UiStateStore
 import com.qymusic.app.utils.fixNestedScroll
@@ -101,7 +107,9 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
 
   private var lastPeekHeight = -1
   private var lastNavReserve = -1
+  private var lastNavMargin = -1
   private var lastSheetPadding = -1
+  private var lastFillHeight = -1
   private var lastPlayerPadding = -1
 
   /** 底部导航栏是否显示：只剩一个模块时隐藏整条导航 */
@@ -114,6 +122,9 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
   private var playerExpanded = false
 
   var _downloadService: DownloadService? = null
+
+  /** 播放器控制器：Activity 从后台回来时主动同步一次，保证底栏控件不消失 */
+  private var appController: MediaController? = null
 
   private val onBackPressedCallback = object : OnBackPressedCallback(false) {
     override fun handleOnBackPressed() {
@@ -561,10 +572,12 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
       lastPeekHeight = peekHeight
       bottomBarBehavior.peekHeight = peekHeight
     }
-    if (navReserve != lastNavReserve) {
+    val navMargin = navReserve + navigationBarInset
+    if (navReserve != lastNavReserve || navMargin != lastNavMargin) {
       lastNavReserve = navReserve
+      lastNavMargin = navMargin
       binding.navHostFragment.updateLayoutParams<ViewGroup.MarginLayoutParams> {
-        bottomMargin = navReserve + navigationBarInset
+        bottomMargin = navMargin
       }
     }
     // 展开全屏时不再给底栏留位置，否则歌词页底部会露出一条导航栏空白
@@ -572,6 +585,12 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     if (sheetPadding != lastSheetPadding) {
       lastSheetPadding = sheetPadding
       binding.bottomBar.updatePadding(bottom = sheetPadding)
+    }
+    val fillHeight = if (playerExpanded) navigationBarInset else 0
+    if (fillHeight != lastFillHeight) {
+      lastFillHeight = fillHeight
+      binding.bottomFill.updateLayoutParams { height = fillHeight }
+      binding.bottomFill.visibility = if (fillHeight > 0) View.VISIBLE else View.GONE
     }
     val playerPadding = if (bottomBarVisible) playerBarHeight else 0
     if (playerPadding != lastPlayerPadding) {
@@ -653,9 +672,14 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
 
     val bottomBar = binding.bottomBar
     bottomBarBehavior = BottomSheetBehavior.from(bottomBar)
+    // 折叠时播放面板完全透明且不接收触摸，否则会挡住下面的底部导航
+    binding.mainPlayer.visibility = View.INVISIBLE
     // 播放栏要盖在底部导航之上，否则导航会压住播放控件
     bottomBar.elevation = 12.dp.toFloat()
-    binding.bottomNav.elevation = 0f
+    // 播放栏是 BottomSheet，层级更高；把底栏抬到同一层级以上，
+    // 否则播放时折叠的透明面板会吃掉底栏点击，表现为首页/云端切不了
+    binding.bottomNav.elevation = 12.dp.toFloat()
+    binding.bottomNav.bringToFront()
     binding.playBar.post {
       if (binding.playBar.height > 0) {
         playerBarHeight = binding.playBar.height
@@ -687,6 +711,7 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
       override fun onSlide(view: View, offset: Float) {
         binding.mainPlayer.translationZ = if (offset == 0f) -10f else 10f
         binding.mainPlayer.alpha = offset
+        binding.mainPlayer.visibility = if (offset > 0f) View.VISIBLE else View.INVISIBLE
         binding.playBar.alpha = 1 - offset
         // 拖动过程中不改布局（peek/margin/导航可见性），只在真正展开 / 折叠后切换，
         // 否则歌词页展开再收起时内容会跟着重新测量，看起来像页面在跳动。
@@ -695,6 +720,7 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
       override fun onStateChanged(v: View, state: Int) {
         // 如果是展开的状态
         if (state == BottomSheetBehavior.STATE_EXPANDED) {
+          binding.mainPlayer.visibility = View.VISIBLE
           // 同步状态给 ViewModel
           mainViewModel.changeBottomBarExpand(true)
           // 恢复状态时可能没有滑动回调，这里补一次，确保展开后底栏已收起
@@ -735,6 +761,55 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
         }
       }
     })
+  }
+
+  override fun onStart() {
+    super.onStart()
+    connectPlayerController()
+  }
+
+  override fun onStop() {
+    appController?.removeListener(this)
+    appController?.release()
+    appController = null
+    super.onStop()
+  }
+
+  private fun connectPlayerController() {
+    if (appController != null) {
+      return
+    }
+    val token = SessionToken(this, ComponentName(this, MusicService::class.java))
+    val future = MediaController.Builder(this, token).buildAsync()
+    future.addListener({
+      val controller = runCatching { future.get() }.getOrNull() ?: return@addListener
+      appController = controller
+      controller.addListener(this)
+      controller.currentMediaItem?.mediaMetadata?.getMusicInfo()?.let { model ->
+        if (model.id != 0L) {
+          lifecycleScope.launch {
+            mainViewModel.updateMusicModel(model)
+          }
+        }
+      }
+      mainViewModel.updateIsPlaying(controller.isPlaying)
+      mainViewModel.updateRepeatMode(controller.repeatMode)
+      mainViewModel.updateCurrentPosition(controller.currentPosition)
+    }, MoreExecutors.directExecutor())
+  }
+
+  override fun onIsPlayingChanged(isPlaying: Boolean) {
+    mainViewModel.updateIsPlaying(isPlaying)
+  }
+
+  override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
+    val model = mediaItem?.mediaMetadata?.getMusicInfo() ?: return
+    if (model.id == 0L) {
+      return
+    }
+    lifecycleScope.launch {
+      mainViewModel.updateMusicModel(model)
+    }
   }
 
   override fun onPause() {
