@@ -790,6 +790,10 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
   }
 
   private fun setFullscreen(fullscreen: Boolean) {
+    // initData 可能早于 onCreate 初始化，这里按需兜底
+    if (!this::windowInsetsController.isInitialized) {
+      windowInsetsController = WindowCompat.getInsetsController(window, window.decorView)
+    }
     if (fullscreen) {
       windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
       windowInsetsController.systemBarsBehavior =
