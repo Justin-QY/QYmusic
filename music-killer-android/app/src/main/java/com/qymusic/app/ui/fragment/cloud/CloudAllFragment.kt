@@ -83,6 +83,7 @@ class CloudAllFragment : BaseMusicAppbarFragment<FragmentCloudAllBinding>(R.layo
                     "liked" -> {
                         val cacheKey = CloudDataCache.likedKey(platform)
                         CloudDataCache.get<MusicModel>(cacheKey)?.let { cached ->
+                            mainViewModel.markMusicStates(cached)
                             binding.rvAll.models = cached.toMutableList()
                             if (CloudDataCache.isFresh(cacheKey)) {
                                 return@launch
@@ -103,6 +104,8 @@ class CloudAllFragment : BaseMusicAppbarFragment<FragmentCloudAllBinding>(R.layo
                                 addQuery("limit", 300)
                             }
                         }.await()
+                        // 最多 300 首，整页一次性回填收藏状态
+                        mainViewModel.markMusicStates(list)
                         binding.rvAll.models = list
                         CloudDataCache.put(CloudDataCache.likedKey(platform), list)
                     }

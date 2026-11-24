@@ -105,6 +105,9 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
   /** 正在切换的底栏目标，防止快速连点导致导航失败后卡住 */
   private var pendingTabId = 0
 
+  /** 当前迷你播放栏封面地址，切歌 / 收藏状态变化时避免重复加载同一张图 */
+  private var lastCoverPic: Any? = null
+
   private var lastPeekHeight = -1
   private var lastNavReserve = -1
   private var lastNavMargin = -1
@@ -836,13 +839,11 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
           binding.musicName.text = model.name
           binding.musicArtist.text = model.artist
           binding.btnFavorite.isSelected = model.isFavorite
+          // 收藏状态变化也会重新发出 musicModel，封面没变就不再解码一次
           val pic = model.showPic
-          if (pic is Int) {
+          if (pic != lastCoverPic) {
+            lastCoverPic = pic
             Glide.with(this@MainActivity).load(pic)
-              .transform(RoundedCorners(6.dp))
-              .into(binding.musicCover)
-          } else {
-            Glide.with(this@MainActivity).load(pic as String)
               .transform(RoundedCorners(6.dp))
               .into(binding.musicCover)
           }
@@ -882,9 +883,9 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
   private fun applyBottomBarState(state: MainViewModel.BottomBarState) {
     bottomBarVisible = state.isVisible
     binding.bottomBar.visibility = if (state.isVisible) View.VISIBLE else View.GONE
-    binding.navHostFragment.updatePadding(
-      bottom = if (state.isVisible) playerBarHeight else 0
-    )
+    // 底部留白统一交给 applyBottomMetrics（内部有变更去重），
+    // 不要在这里再 updatePadding 一次，否则每次切歌都会白白触发一轮布局。
+    applyBottomMetrics()
 
     if (state.isVisible) {
       setFullscreen(state.isExpanded)

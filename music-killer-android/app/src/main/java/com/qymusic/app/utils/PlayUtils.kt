@@ -7,6 +7,7 @@ import androidx.media3.common.MediaMetadata
 import androidx.media3.common.Metadata
 import androidx.media3.common.Player
 import com.qymusic.app.model.MusicModel
+import java.lang.reflect.Field
 import java.util.Locale
 
 fun Player.playOrPause() {
@@ -30,11 +31,19 @@ fun Long.formatDuration(): String {
   }
 }
 
+/**
+ * 反射字段只解析一次。
+ *
+ * [toBundle] 在创建每个播放项时都会调用，整单播放 300 首就是 300 次字段扫描；
+ * 缓存 Field 数组后只剩取值本身的开销。
+ */
+private val musicModelFields: Array<out Field> by lazy {
+  MusicModel::class.java.declaredFields.onEach { it.isAccessible = true }
+}
+
 fun MusicModel.toBundle(): Bundle {
-  val fields = javaClass.declaredFields
   val bundle = Bundle()
-  fields.forEach {
-    it.isAccessible = true
+  musicModelFields.forEach {
     when (val value = it.get(this)) {
       is String -> bundle.putString(it.name, value)
       is Int -> bundle.putInt(it.name, value)
@@ -48,13 +57,10 @@ fun MusicModel.toBundle(): Bundle {
 
 @Suppress("Deprecation")
 fun MediaMetadata.getMusicInfo(): MusicModel? {
-  extras ?: return null
-  val clazz = MusicModel::class.java
-  val fields = clazz.declaredFields
+  val extras = extras ?: return null
   val musicModel = MusicModel()
-  fields.forEach {
-    it.isAccessible = true
-    it.set(musicModel, extras!!.get(it.name))
+  musicModelFields.forEach {
+    it.set(musicModel, extras.get(it.name))
   }
   return musicModel
 }

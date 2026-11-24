@@ -12,13 +12,13 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import org.litepal.LitePal
 import org.litepal.extension.deleteAll
-import org.litepal.extension.findFirst
 import com.qymusic.app.QYMusicApplication
 import com.qymusic.app.constants.IntentActions
 import com.qymusic.app.constants.IntentExtras
 import com.qymusic.app.model.FavoriteModel
 import com.qymusic.app.model.MusicModel
 import com.qymusic.app.model.PlayHistory
+import com.qymusic.app.utils.FavoriteRepository
 
 class MainViewModel : ViewModel() {
 
@@ -73,7 +73,8 @@ class MainViewModel : ViewModel() {
   private fun hasMusicStarted() = _musicModel.value.id != 0L
 
   suspend fun updateMusicModel(musicModel: MusicModel) {
-    musicModel.isFavorite = getMusicFavorite(musicModel) != -1L
+    musicModel.isFavorite =
+      FavoriteRepository.isSongFavorite(musicModel.id, musicModel.source)
     _musicModel.value = musicModel
     syncBottomBarState()
 
@@ -98,30 +99,28 @@ class MainViewModel : ViewModel() {
   suspend fun getMusicModelState(model: MusicModel) {
     // 三个曲库的 id 可能撞号，判断「正在播放」时要同时比对来源
     model.isSelected = _musicModel.value.id == model.id && _musicModel.value.source == model.source
-    model.isFavorite = isFavoriteMusic(model)
+    model.isFavorite = FavoriteRepository.isSongFavorite(model.id, model.source)
   }
 
-  suspend fun getMusicFavorite(musicModel: MusicModel) = withIO {
-    if (musicModel.id == 0L) return@withIO -1
-    try {
-      val source = musicModel.source
-      val condition = if (source == "kw") {
-        "${IntentExtras.MUSIC_ID} = ? and (source = ? or source is null)"
-      } else {
-        "${IntentExtras.MUSIC_ID} = ? and source = ?"
-      }
-      val favoriteModel = LitePal.where(condition, musicModel.id.toString(), source)
-        .findFirst<FavoriteModel>()
-      favoriteModel?.id ?: -1L
-    } catch (e: Exception) {
-      // 数据库结构异常（例如老版本缺少 source 列）时不能把整页列表带崩，
-      // 这里退化成「未收藏」，收藏动作会在写库时再判断一次。
-      -1L
+  /**
+   * 批量回填列表的「正在播放 / 已收藏」状态。
+   *
+   * 收藏状态来自内存缓存（见 [FavoriteRepository]），整页只查一次库，
+   * 避免列表页对每首歌串行查一次 LitePal 造成首屏卡顿。
+   */
+  suspend fun markMusicStates(models: List<MusicModel>) {
+    if (models.isEmpty()) {
+      return
+    }
+    FavoriteRepository.applySongFavoriteStates(models)
+    val current = _musicModel.value
+    models.forEach {
+      it.isSelected = it.id == current.id && it.source == current.source
     }
   }
 
   suspend fun isFavoriteMusic(musicModel: MusicModel): Boolean {
-    return getMusicFavorite(musicModel) != -1L
+    return FavoriteRepository.isSongFavorite(musicModel.id, musicModel.source)
   }
 
   fun addOrRemoveFavorite(model: MusicModel = musicModel.value) {
@@ -152,6 +151,8 @@ class MainViewModel : ViewModel() {
         ).show()
         return@scope
       }
+      // 数据库已变更，内存缓存失效，下次读取重新加载
+      FavoriteRepository.invalidateSongFavorites()
       QYMusicApplication.context.sendBroadcast(
         Intent(IntentActions.FAVORITE)
           .setPackage(QYMusicApplication.context.packageName)

@@ -24,8 +24,17 @@ abstract class BaseMusicAppbarFragment<V : ViewDataBinding>(@LayoutRes contentLa
 
   var contentView: View? = null
 
+  private var cachedContentBinding: V? = null
+
   override val binding: V
-    get() = DataBindingUtil.bind<V>(contentView!!)!!
+    get() = cachedContentBinding
+      ?: DataBindingUtil.bind<V>(contentView!!)!!.also { cachedContentBinding = it }
+
+  override fun onDestroyView() {
+    cachedContentBinding = null
+    contentView = null
+    super.onDestroyView()
+  }
 
   lateinit var baseContentBinding: FragmentBaseBinding
 

@@ -167,7 +167,13 @@ class RecommendFragment :
       }
 
       onBind {
-        getBinding<ItemRankBinding>().musicRv.models = getModel<MusicRankModel>().musicList
+        val rankRv = getBinding<ItemRankBinding>().musicRv
+        val list = getModel<MusicRankModel>().musicList
+        // 嵌套列表只在数据真正变化时重绑：父项每次重绑都赋值会整表刷新
+        val current: Any? = rankRv.models
+        if (current !== list) {
+          rankRv.models = list
+        }
       }
     }
 

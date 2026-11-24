@@ -164,7 +164,8 @@ class MusicPlayFragment :
   }
 
   override fun initData() {
-    lifecycleScope.launch {
+    // 跟随 View 生命周期：视图重建后不会叠加第二个收集器
+    viewLifecycleOwner.lifecycleScope.launch {
       // 监听歌曲信息
       mainViewModel.musicModel.collect { musicInfo ->
         binding.m = musicInfo
@@ -482,9 +483,10 @@ class MusicPlayFragment :
   }
 
   override fun onDestroy() {
-    super.onDestroy()
     handle.removeCallbacks(progressRunnable)
-    mediaController.removeListener(this)
+    // 基类 onDestroy 会释放 controller，这里先移除监听，不能用 mediaController!!
+    _mediaController?.removeListener(this)
+    super.onDestroy()
   }
 
 }

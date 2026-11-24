@@ -7,9 +7,12 @@ import android.view.MenuItem
 import android.view.View
 import androidx.core.view.MenuProvider
 import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.lifecycleScope
 import com.drake.engine.adapter.FragmentAdapter
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import com.qymusic.app.R
 import com.qymusic.app.base.BaseMusicAppbarFragment
 import com.qymusic.app.databinding.FragmentHomeBinding
@@ -45,13 +48,36 @@ class HomeFragment : BaseMusicAppbarFragment<FragmentHomeBinding>(R.layout.fragm
     binding.vp.adapter = FragmentAdapter(listOf(
       RecommendFragment(), PlayListFragment(), RankFragment(), ArtistFragment(),
     ))
-    binding.vp.offscreenPageLimit = 5
+    // 先只保留相邻页，避免冷启动瞬间同时建 4 个 Tab、发 4 路请求
+    binding.vp.offscreenPageLimit = 1
     binding.vp.isSaveEnabled = true
 
     val titles = arrayOf("推荐", "歌单", "排行榜", "歌手")
     TabLayoutMediator(tab, binding.vp) { tab, position ->
       tab.text = titles[position]
     }.attach()
+
+    preloadOtherTabs()
+  }
+
+  /**
+   * 首屏绘制完成后再分两批把其余 Tab 预建好。
+   *
+   * ViewPager2 的 offscreenPageLimit 是"常驻页数"：等首批页面稳定后放开限制，
+   * 四个 Tab 就会一直活着，之后切换不再重建、不再重新请求，做到秒开；
+   * 而冷启动阶段仍然只有推荐页，不会和首屏抢主线程和网络。
+   *
+   * 用 viewLifecycleOwner 的协程，页面销毁时自动取消，不会留下延迟任务。
+   */
+  private fun preloadOtherTabs() {
+    viewLifecycleOwner.lifecycleScope.launch {
+      delay(350)
+      // 先建相邻的「歌单」「排行榜」
+      binding.vp.offscreenPageLimit = 2
+      delay(1100)
+      // 再建「歌手」，四个 Tab 从此全部常驻
+      binding.vp.offscreenPageLimit = 5
+    }
   }
 
   override fun onCreateMenu(menu: Menu, menuInflater: MenuInflater) {

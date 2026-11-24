@@ -206,9 +206,9 @@ fun PageRefreshLayout.addData(
     }
     scope {
       val data = loadData(this@onRefresh)
-      addData(data = data.onEach {
-        fragment.mainViewModel.getMusicModelState(it)
-      }, adapter = bindingAdapter)
+      // 整页一次性回填收藏 / 播放中状态，避免逐条查库
+      fragment.mainViewModel.markMusicStates(data)
+      addData(data = data, adapter = bindingAdapter)
 
       fragment.musicList?.addAll(data)
     }
@@ -246,9 +246,9 @@ fun PageRefreshLayout.addPageData(
     }
     scope {
       val data = loadData(this@onRefresh)
-      addData(data = data.data.onEach {
-        fragment.mainViewModel.getMusicModelState(it)
-      }, adapter = bindingAdapter, hasMore = {
+      // 整页一次性回填收藏 / 播放中状态，避免逐条查库
+      fragment.mainViewModel.markMusicStates(data.data)
+      addData(data = data.data, adapter = bindingAdapter, hasMore = {
         data.total > modelCount
       })
     }

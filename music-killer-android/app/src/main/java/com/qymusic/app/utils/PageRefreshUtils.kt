@@ -37,10 +37,8 @@ inline fun <reified T> PageRefreshLayout.onLoad(
       val data = block.invoke(this, this@onRefresh) ?: return@scope
 
       if (T::class == MusicModel::class) {
-        data.onEach {
-          it as MusicModel
-          fragment.mainViewModel.getMusicModelState(it)
-        }
+        @Suppress("UNCHECKED_CAST")
+        fragment.mainViewModel.markMusicStates(data as List<MusicModel>)
       }
       @Suppress("UNCHECKED_CAST")
       fragment.musicList?.addAll(data as Collection<Any>)

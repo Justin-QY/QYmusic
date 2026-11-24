@@ -169,11 +169,12 @@ class SearchMusicListFragment :
     val currentPage = index
     scope {
       val result = fetchPage(source, currentPage)
-      addData(result.data.onEach {
+      result.data.forEach {
         it.source = source
         it.showSource = false
-        mainViewModel.getMusicModelState(it)
-      }) {
+      }
+      mainViewModel.markMusicStates(result.data)
+      addData(result.data) {
         result.total > modelCount
       }
       result.page = currentPage
@@ -216,7 +217,8 @@ class SearchMusicListFragment :
         }
       }
 
-      addData(merged.onEach { mainViewModel.getMusicModelState(it) }) { hasMore }
+      mainViewModel.markMusicStates(merged)
+      addData(merged) { hasMore }
       addPage(Page(total = total, data = merged).apply { page = currentPage })
     }
   }

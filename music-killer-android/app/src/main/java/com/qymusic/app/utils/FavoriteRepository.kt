@@ -9,6 +9,7 @@ import com.qymusic.app.model.ArtistModel
 import com.qymusic.app.model.FavoriteArtistModel
 import com.qymusic.app.model.FavoriteModel
 import com.qymusic.app.model.FavoritePlaylistModel
+import com.qymusic.app.model.MusicModel
 import com.qymusic.app.model.PlayListModel
 import kotlinx.serialization.Serializable
 import org.litepal.LitePal
@@ -54,6 +55,59 @@ object FavoriteRepository {
 
   suspend fun songs(): List<FavoriteModel> = withIO {
     LitePal.where("type = ?", FavoriteModel.TYPE_SONG.toString()).find<FavoriteModel>()
+  }
+
+  // ------------------------------------------------------------------ 歌曲收藏状态缓存
+
+  private val songKeyLock = Any()
+
+  /** 收藏歌曲 key 集合（musicId|source），null 表示尚未加载 */
+  @Volatile
+  private var songKeyCache: Set<String>? = null
+
+  /** 老数据 source 为空按 kw 处理，与历史 SQL 查询语义保持一致 */
+  private fun songKey(musicId: Long, source: String?): String {
+    val value = source?.takeIf { it.isNotBlank() } ?: "kw"
+    return "$musicId|$value"
+  }
+
+  /**
+   * 一次性读出全部收藏歌曲的 key。
+   *
+   * 列表页原本对每首歌单独查一次 LitePal（N+1），300 首的歌单要串行查 300 次库；
+   * 这里改成整表读一次并缓存在内存，后续判断都是 Set 查找。
+   */
+  suspend fun songFavoriteKeys(): Set<String> = withIO { ensureSongFavoriteKeys() }
+
+  private fun ensureSongFavoriteKeys(): Set<String> {
+    songKeyCache?.let { return it }
+    synchronized(songKeyLock) {
+      songKeyCache?.let { return it }
+      val keys = LitePal.where("type = ?", FavoriteModel.TYPE_SONG.toString())
+        .find<FavoriteModel>()
+        .mapTo(HashSet()) { songKey(it.musicId, it.source) }
+      songKeyCache = keys
+      return keys
+    }
+  }
+
+  /**
+   * 批量回填收藏状态：数据库读取只在 IO 线程发生一次，字段赋值回到调用方线程。
+   */
+  suspend fun applySongFavoriteStates(models: List<MusicModel>) {
+    if (models.isEmpty()) return
+    val keys = songFavoriteKeys()
+    models.forEach { model ->
+      model.isFavorite = model.id > 0 && keys.contains(songKey(model.id, model.source))
+    }
+  }
+
+  suspend fun isSongFavorite(musicId: Long, source: String?): Boolean =
+    musicId > 0 && songFavoriteKeys().contains(songKey(musicId, source))
+
+  /** 收藏表被其它组件（通知栏、老代码）改动后调用，下次读取时重新加载 */
+  fun invalidateSongFavorites() {
+    synchronized(songKeyLock) { songKeyCache = null }
   }
 
   // ------------------------------------------------------------------ 歌单

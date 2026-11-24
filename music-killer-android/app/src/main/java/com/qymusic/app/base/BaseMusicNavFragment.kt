@@ -20,6 +20,7 @@ import androidx.databinding.DataBindingUtil
 import androidx.databinding.ViewDataBinding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
@@ -62,7 +63,13 @@ abstract class BaseMusicNavFragment<V : ViewDataBinding>(@LayoutRes contentLayou
     private const val KEY_FIRST_LOAD = "first_load"
   }
 
-  open val binding get() = DataBindingUtil.bind<V>(requireView())!!
+  private var cachedBinding: V? = null
+
+  /**
+   * 缓存 ViewBinding，避免每次访问都重新走 DataBindingUtil.bind 查找。
+   */
+  open val binding: V
+    get() = cachedBinding ?: DataBindingUtil.bind<V>(requireView())!!.also { cachedBinding = it }
 
   protected var isFirstLoad = true
     private set
@@ -190,8 +197,14 @@ abstract class BaseMusicNavFragment<V : ViewDataBinding>(@LayoutRes contentLayou
       val controllerFuture = MediaController.Builder(requireContext(), sessionToken).buildAsync()
       controllerFuture.addListener(
         {
-          _mediaController = controllerFuture.get()
-          onCreateMediaController(mediaController)
+          val controller = runCatching { controllerFuture.get() }.getOrNull()
+          if (controller == null || lifecycle.currentState == Lifecycle.State.DESTROYED) {
+            // 页面在连接完成前已被销毁：直接释放，避免留下无主连接
+            controller?.release()
+            return@addListener
+          }
+          _mediaController = controller
+          onCreateMediaController(controller)
         },
         MoreExecutors.directExecutor()
       )
@@ -240,10 +253,20 @@ abstract class BaseMusicNavFragment<V : ViewDataBinding>(@LayoutRes contentLayou
   }
 
   override fun onDestroyView() {
+    cachedBinding = null
     super.onDestroyView()
     if (::musicBroadReceiver.isInitialized) {
       requireContext().unregisterReceiver(musicBroadReceiver)
     }
+  }
+
+  override fun onDestroy() {
+    // 先取消可能在等网络的播放任务，再释放会话，避免用到已释放的 controller
+    playJob?.cancel()
+    // 每个页面的 MediaController 都必须释放，否则会话连接会越积越多
+    _mediaController?.release()
+    _mediaController = null
+    super.onDestroy()
   }
 
   /**
@@ -520,6 +543,8 @@ abstract class BaseMusicNavFragment<V : ViewDataBinding>(@LayoutRes contentLayou
     override fun onReceive(context: Context, intent: Intent) {
       when (intent.action) {
         IntentActions.FAVORITE -> {
+          // 收藏可能来自通知栏（MusicService 直接写库），内存缓存需要失效
+          com.qymusic.app.utils.FavoriteRepository.invalidateSongFavorites()
           val musicId = intent.getLongExtra(IntentExtras.MUSIC_ID, -1L)
           val isFavorite = intent.getBooleanExtra(IntentExtras.FAVORITE, false)
           if (musicId == musicModel.id) {

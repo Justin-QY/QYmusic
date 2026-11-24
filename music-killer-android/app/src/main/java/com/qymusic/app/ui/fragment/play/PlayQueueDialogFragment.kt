@@ -239,10 +239,18 @@ class PlayQueueDialogFragment : EngineBottomSheetDialogFragment<FragmentPlayQueu
       return
     }
     val current = mediaController.currentMediaItemIndex
+    // 只刷新选中项变化的两行，避免整表重绑
+    val previous = models.indexOfFirst { it.isSelected }
     models.forEachIndexed { index, model ->
       model.isSelected = index == current
     }
-    binding.playListRv.bindingAdapter.notifyDataSetChanged()
+    val adapter = binding.playListRv.bindingAdapter
+    if (previous in models.indices) {
+      adapter.notifyItemChanged(previous)
+    }
+    if (current in models.indices && current != previous) {
+      adapter.notifyItemChanged(current)
+    }
 
     if (current in models.indices) {
       runCatching { binding.playListRv.bindingAdapter.setChecked(current, true) }
@@ -266,5 +274,13 @@ class PlayQueueDialogFragment : EngineBottomSheetDialogFragment<FragmentPlayQueu
     super.onDestroyView()
     if (::mediaController.isInitialized)
       mediaController.removeListener(this)
+  }
+
+  override fun onDestroy() {
+    // 弹窗自己创建的 MediaController 必须释放
+    if (::mediaController.isInitialized) {
+      mediaController.release()
+    }
+    super.onDestroy()
   }
 }

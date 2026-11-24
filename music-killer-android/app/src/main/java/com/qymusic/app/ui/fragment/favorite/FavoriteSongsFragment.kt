@@ -43,8 +43,10 @@ class FavoriteSongsFragment :
           source = it.source ?: "wy",
         )
       }
+      // 本页全部是已收藏歌曲，只需回填「正在播放」状态，不再逐条查库
+      val current = mainViewModel.musicModel.value
       songs.forEach {
-        mainViewModel.getMusicModelState(it)
+        it.isSelected = it.id == current.id && it.source == current.source
         it.isFavorite = true
       }
       binding.rv.models = songs.toMutableList()

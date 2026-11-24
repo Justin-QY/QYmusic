@@ -50,7 +50,8 @@ class LyricsFragment : BaseMusicNavFragment<FragmentLyricsBinding>(R.layout.frag
   }
 
   override fun initData() {
-    lifecycleScope.launch {
+    // 跟随 View 生命周期：避免视图重建后重复订阅、重复拉取歌词
+    viewLifecycleOwner.lifecycleScope.launch {
       mainViewModel.musicModel.collect {
         if (it.id == 0L) {
           return@collect
@@ -59,7 +60,7 @@ class LyricsFragment : BaseMusicNavFragment<FragmentLyricsBinding>(R.layout.frag
       }
     }
 
-    lifecycleScope.launch {
+    viewLifecycleOwner.lifecycleScope.launch {
       mainViewModel.currentPosition.collect {
         binding.lyricViewX.updateTime(it)
       }
