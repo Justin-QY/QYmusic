@@ -69,6 +69,7 @@ import com.qymusic.app.utils.AppUpdater
 import com.qymusic.app.utils.UiStateStore
 import com.qymusic.app.utils.fixNestedScroll
 import com.qymusic.app.utils.json
+import com.qymusic.app.utils.playOrPause
 import java.io.File
 
 class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main), Player.Listener {
@@ -644,7 +645,14 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
       }
 
       R.id.btn_play -> {
-        mainViewModel.updateIsPlaying()
+        // 直接操作共享的 MediaController：原来只翻转 ViewModel 的 isPlaying，
+        // 再由播放页去切歌，播放页没创建 / 状态不同步时第一下点击会被吞掉。
+        val controller = appController
+        if (controller != null) {
+          controller.playOrPause()
+        } else {
+          mainViewModel.updateIsPlaying()
+        }
       }
 
       R.id.btn_favorite -> {

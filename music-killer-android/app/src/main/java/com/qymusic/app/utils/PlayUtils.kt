@@ -14,8 +14,25 @@ fun Player.playOrPause() {
   if (isPlaying) {
     pause()
   } else {
-    play()
+    startPlayback()
   }
+}
+
+/**
+ * 开始播放当前媒体。
+ *
+ * - 播放器处于 IDLE（刚 stop 过、首次加载）时先 prepare()，否则 play() 不会生效；
+ * - 暂停 / 缓冲中只需要把 playWhenReady 置回 true。
+ *
+ * 之前多个入口直接用 `Util.handlePlayButtonAction(player)`，它按 playWhenReady 判断，
+ * 缓冲阶段（isPlaying=false 但 playWhenReady=true）会被当成「正在播放」而忽略命令，
+ * 表现为第一下点了没反应，要再点一次。
+ */
+fun Player.startPlayback() {
+  if (playbackState == Player.STATE_IDLE) {
+    prepare()
+  }
+  play()
 }
 
 // 转换为可读格式

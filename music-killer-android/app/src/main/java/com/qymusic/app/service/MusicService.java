@@ -181,7 +181,7 @@ public class MusicService extends MediaSessionService implements Player.Listener
 
         // 配置缓存数据源工厂，将 HTTP 数据源作为上游
         CacheDataSource.Factory cacheDataSourceFactory = new CacheDataSource.Factory()
-                .setCache(QYMusicApplication.simpleCache)
+                .setCache(QYMusicApplication.getSimpleCache(this))
                 .setUpstreamDataSourceFactory(httpDataSourceFactory)
                 .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR);
 

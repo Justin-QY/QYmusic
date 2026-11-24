@@ -158,14 +158,12 @@
 
             </LinearLayout>
 
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/rv_daily_playlists"
+            <LinearLayout
+                android:id="@+id/ll_daily_playlists"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:clipToPadding="false"
-                android:nestedScrollingEnabled="false"
-                android:orientation="horizontal"
-                android:overScrollMode="never" />
+                android:orientation="horizontal" />
 
             <LinearLayout
                     android:id="@+id/row_login_features"
@@ -411,12 +409,11 @@
 
             </LinearLayout>
 
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/rv_liked"
+            <LinearLayout
+                android:id="@+id/ll_liked"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:nestedScrollingEnabled="false"
-                android:overScrollMode="never" />
+                android:orientation="vertical" />
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -448,12 +445,11 @@
 
             </LinearLayout>
 
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/rv_playlists"
+            <LinearLayout
+                android:id="@+id/ll_playlists"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:nestedScrollingEnabled="false"
-                android:overScrollMode="never" />
+                android:orientation="vertical" />
 
             <LinearLayout
                 android:id="@+id/row_artists"
@@ -487,12 +483,11 @@
 
             </LinearLayout>
 
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/rv_artists"
+            <LinearLayout
+                android:id="@+id/ll_artists"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:nestedScrollingEnabled="false"
-                android:overScrollMode="never" />
+                android:orientation="vertical" />
 
         </LinearLayout>
 

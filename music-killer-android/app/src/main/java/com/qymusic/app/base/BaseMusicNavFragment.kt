@@ -25,7 +25,6 @@ import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
-import androidx.media3.common.util.Util
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.navigation.NavController
@@ -51,6 +50,7 @@ import com.qymusic.app.service.MusicService
 import com.qymusic.app.ui.activity.MainActivity
 import com.qymusic.app.ui.activity.MainViewModel
 import com.qymusic.app.utils.SpUtils.getRequired
+import com.qymusic.app.utils.startPlayback
 import com.qymusic.app.utils.toBundle
 
 /**
@@ -91,6 +91,9 @@ abstract class BaseMusicNavFragment<V : ViewDataBinding>(@LayoutRes contentLayou
   protected val musicModel get() = mainViewModel.musicModel.value
 
   private var playJob: AndroidScope? = null
+
+  /** MediaController 还在连接中时暂存的播放请求，连上后自动执行 */
+  private var pendingPlayRequest: ((MediaController) -> Unit)? = null
 
   protected lateinit var navController: NavController
 
@@ -205,6 +208,11 @@ abstract class BaseMusicNavFragment<V : ViewDataBinding>(@LayoutRes contentLayou
           }
           _mediaController = controller
           onCreateMediaController(controller)
+          // 连接完成前用户已经点了播放：现在补执行，避免第一下点击被吞掉
+          pendingPlayRequest?.let { request ->
+            pendingPlayRequest = null
+            request(controller)
+          }
         },
         MoreExecutors.directExecutor()
       )
@@ -410,15 +418,11 @@ abstract class BaseMusicNavFragment<V : ViewDataBinding>(@LayoutRes contentLayou
       }
       // 获取到当前的媒体音频
       val mediaItem = mediaController.currentMediaItem ?: return@scope
-      // 先停止播放
-      mediaController.stop()
-      // 重新获取到播放信息
-      // 设置新的播放地址
+      // 不要再先 stop()：stop() 会把播放器打到 IDLE，紧接着的播放命令会被忽略，
+      // 表现为「点了播放没反应，要再点一次」。直接替换地址再播即可。
       val newMediaItem = mediaItem.buildUpon().createPlayUrl(musicModel).build()
-      // 替换新的播放媒体
       mediaController.replaceMediaItem(currentMediaItemIndex, newMediaItem)
-      // 开始进行播放
-      Util.handlePlayButtonAction(mediaController)
+      mediaController.startPlayback()
     }
   }
 
@@ -431,8 +435,13 @@ abstract class BaseMusicNavFragment<V : ViewDataBinding>(@LayoutRes contentLayou
     playJob = scope {
       mainViewModel.updateMusicModel(musicModel)
       val mediaItem = createMediaItem(musicModel)
-      mediaController.replaceMediaItem(mediaController.currentMediaItemIndex, mediaItem)
-      Util.handlePlayButtonAction(mediaController)
+      val index = mediaController.currentMediaItemIndex
+      if (index == C.INDEX_UNSET) {
+        addPlay(musicModel)
+        return@scope
+      }
+      mediaController.replaceMediaItem(index, mediaItem)
+      mediaController.startPlayback()
     }
   }
 
@@ -464,45 +473,38 @@ abstract class BaseMusicNavFragment<V : ViewDataBinding>(@LayoutRes contentLayou
     immediate: Boolean = true,
     onError: ((Throwable) -> Unit)? = null
   ) {
-    _mediaController ?: return
+    if (_mediaController == null) {
+      // Controller 连接是异步的：先挂起请求，连上后自动播放。
+      // 原来这里直接 return，冷启动时点歌第一下会完全没反应。
+      pendingPlayRequest = { addPlay(musicModel, immediate, onError) }
+      return
+    }
+    val controller = mediaController
 
-    for (i in 0 until mediaController.mediaItemCount) {
-      if (mediaController.getMediaItemAt(i).mediaId == musicModel.id.toString()) {
+    for (i in 0 until controller.mediaItemCount) {
+      if (controller.getMediaItemAt(i).mediaId == musicModel.id.toString()) {
         if (immediate) {
-          mediaController.seekTo(i, 0)
-          Util.handlePlayButtonAction(mediaController)
+          controller.seekTo(i, 0)
+          controller.startPlayback()
         } else {
           // 移动到最后
-          mediaController.moveMediaItem(i, mediaController.mediaItemCount - 1)
+          controller.moveMediaItem(i, controller.mediaItemCount - 1)
         }
         return
       }
     }
 
-    if (immediate) {
-      // 先更新 UI
-      // mainViewModel.updateMusicModel(musicModel)
-      // 更新到默认的进度
-      // mediaController.seekToDefaultPosition()
-      if (mediaController.isPlaying) {
-        // 立即停止
-        mediaController.stop()
-      }
-    } else if (mediaController.mediaItemCount == 0) {
-      // mainViewModel.updateMusicModel(musicModel)
-    }
-
     playJob?.cancel()
     playJob = scope {
-
       val mediaItem = createMediaItem(musicModel)
-      // val wasEmpty = mediaController.mediaItemCount == 0
-      mediaController.addMediaItem(mediaItem)
+      // 先记下插入位置：MediaController 的命令是异步下发的，addMediaItem 之后
+      // 本地 mediaItemCount 还没更新，再减 1 会 seek 到上一首甚至 -1。
+      val newIndex = controller.mediaItemCount
+      controller.addMediaItem(mediaItem)
 
       if (immediate) {
-        val newIndex = mediaController.mediaItemCount - 1
-        mediaController.seekTo(newIndex, 0)
-        Util.handlePlayButtonAction(mediaController)
+        controller.seekTo(newIndex, 0)
+        controller.startPlayback()
         // 直接同步当前歌曲：底部播放栏默认是隐藏的，展开面板里的 MusicPlayFragment
         // 此时可能还没被创建，不能只依赖它的 onMediaItemTransition 回调。
         mainViewModel.updateMusicModel(musicModel)
@@ -520,22 +522,28 @@ abstract class BaseMusicNavFragment<V : ViewDataBinding>(@LayoutRes contentLayou
    * @param clear 是否清空当前的播放队列
    */
   fun addPlaylist(list: List<Any?>, clear: Boolean = true) {
-    _mediaController ?: return
     if (list.isEmpty()) return
+    if (_mediaController == null) {
+      pendingPlayRequest = { addPlaylist(list, clear) }
+      return
+    }
+    val controller = mediaController
 
     val mediaItems = list.map { createMediaItem(it as MusicModel) }
     if (clear) {
-      mediaController.setMediaItems(mediaItems)
-      if (mediaController.isPlaying) {
-        mediaController.stop()
-      }
-      Util.handlePlayButtonAction(mediaController)
+      playJob?.cancel()
+      // setMediaItems 会整体替换队列；不要再先 stop()：
+      // stop() 会把播放器打到 IDLE，紧接着的播放命令会被忽略，
+      // 这正是「点了歌第一下不播，再点一下播放键才播」的原因。
+      controller.setMediaItems(mediaItems)
+      controller.seekToDefaultPosition()
+      controller.startPlayback()
       // 整单播放时同步第一首歌，保证底部播放栏能显示
       (list.firstOrNull() as? MusicModel)?.let { first ->
         scope { mainViewModel.updateMusicModel(first) }
       }
     } else {
-      mediaController.addMediaItems(mediaItems)
+      controller.addMediaItems(mediaItems)
     }
   }
 

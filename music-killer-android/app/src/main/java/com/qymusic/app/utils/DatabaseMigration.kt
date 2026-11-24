@@ -1,6 +1,9 @@
 package com.qymusic.app.utils
 
+import android.content.Context
 import android.util.Log
+import com.qymusic.app.BuildConfig
+import com.qymusic.app.QYMusicApplication
 import org.litepal.LitePal
 
 /**
@@ -21,6 +24,9 @@ object DatabaseMigration {
   /** LitePal 由类名生成的表名（全小写） */
   private const val FAVORITE_TABLE = "favoritemodel"
 
+  private const val PREFS_NAME = "db_migration"
+  private const val KEY_CHECKED_VERSION = "checked_version"
+
   /**
    * 确保收藏表存在 source 列，并回填历史数据。
    *
@@ -28,6 +34,13 @@ object DatabaseMigration {
    * 后续查询本身也有容错处理。
    */
   fun ensureSchema() {
+    // 每个版本只在升级后检查一次：原来每次冷启动都会对收藏表做全表 UPDATE，
+    // 收藏数据多时会在主线程上扫描整张表。
+    val prefs = QYMusicApplication.context
+      .getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    if (prefs.getInt(KEY_CHECKED_VERSION, 0) == BuildConfig.VERSION_CODE) {
+      return
+    }
     try {
       // 打开数据库；LitePal 会在这里完成建表与版本升级
       val db = LitePal.getDatabase()
@@ -67,6 +80,9 @@ object DatabaseMigration {
       // 旧版本只有 kw 曲库，历史收藏的 source 为空时按 kw 回填，
       // 保证旧收藏能继续被识别为已收藏。
       db.execSQL("UPDATE $FAVORITE_TABLE SET source = 'kw' WHERE source IS NULL OR source = ''")
+
+      // 检查成功才写标记；异常时下次启动会重试
+      prefs.edit().putInt(KEY_CHECKED_VERSION, BuildConfig.VERSION_CODE).apply()
     } catch (e: Exception) {
       Log.w(TAG, "数据库结构检查失败，跳过", e)
     }

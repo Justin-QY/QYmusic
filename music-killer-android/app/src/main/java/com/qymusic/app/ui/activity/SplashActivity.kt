@@ -10,6 +10,7 @@ import androidx.core.view.WindowCompat
 import androidx.lifecycle.lifecycleScope
 import com.drake.net.Get
 import com.qymusic.app.BuildConfig
+import com.qymusic.app.QYMusicApplication
 import com.qymusic.app.R
 import com.qymusic.app.config.Api
 import com.qymusic.app.model.MusicRankModel
@@ -18,6 +19,7 @@ import com.qymusic.app.model.PlayListModel
 import com.qymusic.app.model.PlayListTagModel
 import com.qymusic.app.model.QueryPlayListParams
 import com.qymusic.app.utils.query
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -69,9 +71,15 @@ class SplashActivity : AppCompatActivity() {
     lifecycleScope.launch {
       val minStay = async { delay(MIN_STAY_MS) }
       val warmUp = async { withTimeoutOrNull(WARM_UP_TIMEOUT_MS) { warmUpHomeData() } }
+      // 2GB 媒体缓存构造会扫描缓存目录，放到后台和网络预热并行，
+      // 进入主界面时播放服务直接复用，不再卡主线程。
+      val cacheWarm = async(Dispatchers.IO) {
+        runCatching { QYMusicApplication.getSimpleCache(this@SplashActivity) }
+      }
 
       val ready = warmUp.await() != null
       minStay.await()
+      cacheWarm.await()
 
       findViewById<TextView>(R.id.tv_status).text =
         if (ready) "即将进入" else "网络较慢，正在进入…"

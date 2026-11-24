@@ -49,7 +49,29 @@ class QYMusicApplication : Application() {
     @SuppressLint("StaticFieldLeak")
     lateinit var context: Context
 
-    lateinit var simpleCache: SimpleCache
+    @Volatile
+    private var mediaCache: SimpleCache? = null
+
+    /**
+     * 获取（必要时创建）2GB 媒体缓存。
+     *
+     * SimpleCache 构造时会扫描磁盘上的缓存索引，冷启动主线程执行会拖慢首帧；
+     * 启动页会在后台线程预热，播放服务随后直接复用同一个实例。
+     */
+    @JvmStatic
+    fun getSimpleCache(appContext: Context = context): SimpleCache {
+      mediaCache?.let { return it }
+      synchronized(this) {
+        mediaCache?.let { return it }
+        val cache = SimpleCache(
+          java.io.File(appContext.cacheDir, "media_cache"),
+          LeastRecentlyUsedCacheEvictor(2028L * 1024 * 1024),
+          StandaloneDatabaseProvider(appContext)
+        )
+        mediaCache = cache
+        return cache
+      }
+    }
   }
 
   override fun onCreate() {
@@ -64,10 +86,8 @@ class QYMusicApplication : Application() {
     // 上次若在超级岛脉冲中途被杀，启动时把 XMSF 网络恢复默认
     com.qymusic.app.utils.lyric.ShizukuXmsfHelper.restoreAsync(this)
 
-    val cacheSize = 2028L * 1024 * 1024 // 2GB
-    val evictor = LeastRecentlyUsedCacheEvictor(cacheSize)
-    val databaseProvider = StandaloneDatabaseProvider(this)
-    simpleCache = SimpleCache(java.io.File(cacheDir, "media_cache"), evictor, databaseProvider)
+    // 媒体缓存不在这里创建：SimpleCache 构造会扫描缓存目录，
+    // 改由 SplashActivity 在后台线程预热（见 getSimpleCache）。
 
     // 安全检查
     // com.qymusic.app.utils.SecurityManager.check(this)

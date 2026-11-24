@@ -75,7 +75,7 @@ object AppStorage {
   /** 清理 media3 音频缓存，正在播放的音频会重新缓存 */
   fun clearAudioCache() {
     runCatching {
-      val cache = QYMusicApplication.simpleCache
+      val cache = QYMusicApplication.getSimpleCache()
       cache.keys.toList().forEach { key -> cache.removeResource(key) }
     }
   }

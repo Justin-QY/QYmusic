@@ -13,7 +13,6 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
 import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
-import androidx.media3.common.util.Util
 import androidx.media3.session.MediaController
 import com.drake.net.Get
 import com.drake.net.utils.scope
@@ -35,6 +34,7 @@ import com.qymusic.app.utils.SpUtils.getRequired
 import com.qymusic.app.utils.SpUtils.put
 import com.qymusic.app.utils.getMusicInfo
 import com.qymusic.app.utils.startAnimation
+import com.qymusic.app.utils.startPlayback
 
 /**
  * 播放音乐页面
@@ -330,8 +330,13 @@ class MusicPlayFragment :
     v?.let {
       ViewCompat.performHapticFeedback(it, HapticFeedbackConstantsCompat.CONTEXT_CLICK)
     }
-    if (!Util.handlePlayPauseButtonAction(mediaController)) {
-      rePlay()
+    // 以「是否真的在播放」判断，和按钮图标保持一致。
+    // 不能用 playWhenReady：缓冲阶段 isPlaying=false 但 playWhenReady 已为 true，
+    // 原来用 Util.handlePlayPauseButtonAction 会把这次点击当成暂停，第一下点了没反应。
+    if (mediaController.isPlaying) {
+      mediaController.pause()
+    } else {
+      mediaController.startPlayback()
     }
     return true
   }

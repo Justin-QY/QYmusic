@@ -5,19 +5,16 @@ import android.view.Menu
 import android.view.MenuInflater
 import android.view.MenuItem
 import android.view.View
+import android.view.ViewGroup
+import android.widget.LinearLayout
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.os.bundleOf
 import androidx.core.view.MenuProvider
 import androidx.core.view.isVisible
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
-import androidx.recyclerview.widget.LinearLayoutManager
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.CircleCrop
-import com.drake.brv.utils.grid
-import com.drake.brv.utils.models
-import com.drake.brv.utils.setup
-import com.drake.engine.utils.dp
 import com.drake.net.Get
 import com.drake.tooltip.toast
 import kotlinx.coroutines.async
@@ -27,11 +24,14 @@ import com.qymusic.app.base.BaseMusicAppbarFragment
 import com.qymusic.app.config.Api
 import com.qymusic.app.config.SPConfig
 import com.qymusic.app.databinding.FragmentCloudBinding
+import com.qymusic.app.databinding.ItemDailyPlaylistBinding
+import com.qymusic.app.databinding.ItemGridArtistBinding
+import com.qymusic.app.databinding.ItemListMusicBinding
+import com.qymusic.app.databinding.ItemPlaylistBinding
 import com.qymusic.app.model.ArtistModel
 import com.qymusic.app.model.MusicModel
 import com.qymusic.app.model.Page
 import com.qymusic.app.model.PlayListModel
-import com.qymusic.app.model.setupMusicRv
 import com.qymusic.app.ui.activity.PlatformLoginActivity
 import com.qymusic.app.utils.CloudDataCache
 import com.qymusic.app.utils.SleepTimerDialog
@@ -85,44 +85,22 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
 
     override fun openMediaController(): Boolean = true
 
-    override fun getMusicModels(): List<Any?>? = binding.rvLiked.models
+    /** 「我喜欢的音乐」当前展示的数据，供基类同步播放中 / 收藏状态 */
+    private val likedModels = mutableListOf<MusicModel>()
+
+    private var boundLiked: List<MusicModel> = emptyList()
+    private var boundDaily: List<PlayListModel> = emptyList()
+    private var boundPlaylists: List<PlayListModel> = emptyList()
+    private var boundArtists: List<ArtistModel> = emptyList()
+
+    override fun getMusicModels(): List<Any?>? = likedModels
 
     override fun initView() {
         requireActivity().addMenuProvider(this, viewLifecycleOwner, Lifecycle.State.RESUMED)
-        binding.rvLiked.setupMusicRv(this)
 
-        binding.rvDailyPlaylists.layoutManager =
-            LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
-        binding.rvDailyPlaylists.setup {
-            addType<PlayListModel>(R.layout.item_daily_playlist)
-            R.id.item_daily_playlist.onClick {
-                navController.navigate(
-                    R.id.playlistInfoFragment,
-                    bundleOf("playlist" to getModel<PlayListModel>())
-                )
-            }
-        }
-
-        binding.rvPlaylists.grid(3).setup {
-            addType<PlayListModel>(R.layout.item_playlist)
-            R.id.item_playlist.onClick {
-                navController.navigate(
-                    R.id.playlistInfoFragment,
-                    bundleOf("playlist" to getModel<PlayListModel>())
-                )
-            }
-        }
-
-        binding.rvArtists.grid(3).setup {
-            addType<ArtistModel>(R.layout.item_grid_artist)
-            R.id.item_artist.onClick {
-                navController.navigate(
-                    R.id.artistInfoFragment,
-                    bundleOf("artist" to getModel<ArtistModel>())
-                )
-            }
-        }
-
+        // 云端页每块列表都很小（5~10 条），直接填充普通容器：
+        // 原来 4 个 RecyclerView 嵌在 NestedScrollView 里，每次布局都要重复测量全部子项，
+        // 滚动和展开底栏时都会跟着重排。
         binding.chipNetease.setOnClickListener { selectPlatform(PlatformLoginActivity.PLATFORM_NETEASE) }
         binding.chipQq.setOnClickListener { selectPlatform(PlatformLoginActivity.PLATFORM_QQ) }
         binding.chipKuwo.setOnClickListener { selectPlatform(PlatformLoginActivity.PLATFORM_KUGOU) }
@@ -139,6 +117,152 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
     }
 
     override fun initData() {
+    }
+
+    // ------------------------------------------------------------------ 列表填充
+    // 云端页四块数据分别只有 5 / 10 / 6 / 6 条，直接用普通容器填充，
+    // 比嵌套 RecyclerView（在 NestedScrollView 里会被反复测量）更省布局开销。
+
+    private fun clearLists() {
+        bindLiked(emptyList())
+        bindDaily(emptyList())
+        bindPlaylists(emptyList())
+        bindArtists(emptyList())
+    }
+
+    override fun onDestroyView() {
+        // 视图重建（如旋转屏幕）后容器是空的，必须让下次绑定重新填充，
+        // 不能因为「数据没变」直接跳过。
+        boundLiked = emptyList()
+        boundDaily = emptyList()
+        boundPlaylists = emptyList()
+        boundArtists = emptyList()
+        super.onDestroyView()
+    }
+
+    /** 「我喜欢的音乐」：点击整行播放，右侧按钮收藏 / 加入队列 */
+    private fun bindLiked(source: List<MusicModel>) {
+        val data = source.toList()
+        likedModels.clear()
+        likedModels.addAll(data)
+        if (data == boundLiked) {
+            return
+        }
+        boundLiked = data
+
+        val container = binding.llLiked
+        container.removeAllViews()
+        data.forEachIndexed { index, model ->
+            val item = ItemListMusicBinding.inflate(layoutInflater, container, false)
+            item.m = model
+            item.executePendingBindings()
+            item.root.setOnClickListener {
+                // 与原来的列表行为一致：从当前歌曲开始连续播放最多 20 首
+                val end = minOf(data.size, index + 20)
+                addPlaylist(data.subList(index, end), true)
+            }
+            item.btnFavorite.setOnClickListener { mainViewModel.addOrRemoveFavorite(model) }
+            item.btnAdd.setOnClickListener {
+                addPlay(model, false)
+                toast("${model.name}已添加到播放队列")
+            }
+            container.addView(item.root)
+        }
+    }
+
+    /** 每日推荐歌单：横向小卡片 */
+    private fun bindDaily(source: List<PlayListModel>) {
+        val data = source.toList()
+        if (data == boundDaily) {
+            return
+        }
+        boundDaily = data
+
+        val container = binding.llDailyPlaylists
+        container.removeAllViews()
+        data.forEach { model ->
+            val item = ItemDailyPlaylistBinding.inflate(layoutInflater, container, false)
+            item.m = model
+            item.executePendingBindings()
+            item.root.setOnClickListener {
+                navController.navigate(
+                    R.id.playlistInfoFragment,
+                    bundleOf("playlist" to model)
+                )
+            }
+            container.addView(item.root)
+        }
+    }
+
+    /** 我创建 / 收藏的歌单：三列网格 */
+    private fun bindPlaylists(source: List<PlayListModel>) {
+        val data = source.toList()
+        if (data == boundPlaylists) {
+            return
+        }
+        boundPlaylists = data
+        bindGrid(binding.llPlaylists, data.size) { index ->
+            val model = data[index]
+            val item = ItemPlaylistBinding.inflate(layoutInflater, binding.llPlaylists, false)
+            item.m = model
+            item.executePendingBindings()
+            item.root.setOnClickListener {
+                navController.navigate(
+                    R.id.playlistInfoFragment,
+                    bundleOf("playlist" to model)
+                )
+            }
+            item.root
+        }
+    }
+
+    /** 收藏歌手（仅网易云）：三列网格 */
+    private fun bindArtists(source: List<ArtistModel>) {
+        val data = source.toList()
+        if (data == boundArtists) {
+            return
+        }
+        boundArtists = data
+        bindGrid(binding.llArtists, data.size) { index ->
+            val model = data[index]
+            val item = ItemGridArtistBinding.inflate(layoutInflater, binding.llArtists, false)
+            item.m = model
+            item.executePendingBindings()
+            item.root.setOnClickListener {
+                navController.navigate(
+                    R.id.artistInfoFragment,
+                    bundleOf("artist" to model)
+                )
+            }
+            item.root
+        }
+    }
+
+    /**
+     * 三列网格填充：每行一个水平 LinearLayout，子项等分宽度。
+     * 不足三列的行按实际数量排布，右侧自然留白（与 GridLayoutManager 一致）。
+     */
+    private fun bindGrid(container: LinearLayout, count: Int, create: (Int) -> View) {
+        container.removeAllViews()
+        var index = 0
+        while (index < count) {
+            val row = LinearLayout(requireContext()).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    ViewGroup.LayoutParams.WRAP_CONTENT
+                )
+            }
+            val columns = minOf(3, count - index)
+            repeat(columns) {
+                row.addView(
+                    create(index),
+                    LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+                )
+                index++
+            }
+            container.addView(row)
+        }
     }
 
     override fun onResume() {
@@ -191,10 +315,7 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
             binding.cardProfile.isVisible = false
             binding.cardKugouVip.isVisible = false
             binding.groupContent.isVisible = false
-            binding.rvDailyPlaylists.models = emptyList<PlayListModel>()
-            binding.rvLiked.models = emptyList<MusicModel>()
-            binding.rvPlaylists.models = emptyList<PlayListModel>()
-            binding.rvArtists.models = emptyList<ArtistModel>()
+            clearLists()
             return
         }
 
@@ -235,10 +356,7 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         binding.rowArtists.visibility = if (isNetease) View.VISIBLE else View.GONE
 
         if (!logged) {
-            binding.rvDailyPlaylists.models = emptyList<PlayListModel>()
-            binding.rvLiked.models = emptyList<MusicModel>()
-            binding.rvPlaylists.models = emptyList<PlayListModel>()
-            binding.rvArtists.models = emptyList<ArtistModel>()
+            clearLists()
             return
         }
 
@@ -336,13 +454,13 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
 
         // 先渲染缓存，进入云端页立即有内容
         CloudDataCache.get<MusicModel>(CloudDataCache.likedKey(target))
-            ?.let { binding.rvLiked.models = it.take(5) }
+            ?.let { bindLiked(it.take(5)) }
         CloudDataCache.get<PlayListModel>(CloudDataCache.playlistsKey(target))
-            ?.let { binding.rvPlaylists.models = it.take(6) }
+            ?.let { bindPlaylists(it.take(6)) }
         CloudDataCache.get<ArtistModel>(CloudDataCache.artistsKey(target))
-            ?.let { binding.rvArtists.models = it.take(6) }
+            ?.let { bindArtists(it.take(6)) }
         CloudDataCache.get<PlayListModel>(CloudDataCache.DAILY_KEY)
-            ?.let { binding.rvDailyPlaylists.models = it.take(10) }
+            ?.let { bindDaily(it.take(10)) }
 
         val likedKey = CloudDataCache.likedKey(target)
         val playlistsKey = CloudDataCache.playlistsKey(target)
@@ -414,10 +532,10 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
                 val playlistsData = playlists.await()
                 val artistsData = artists?.await().orEmpty()
 
-                binding.rvDailyPlaylists.models = dailyData.take(10)
-                binding.rvLiked.models = likedData.take(5)
-                binding.rvPlaylists.models = playlistsData.take(6)
-                binding.rvArtists.models = artistsData.take(6)
+                bindDaily(dailyData.take(10))
+                bindLiked(likedData.take(5))
+                bindPlaylists(playlistsData.take(6))
+                bindArtists(artistsData.take(6))
 
                 CloudDataCache.put(CloudDataCache.DAILY_KEY, dailyData)
                 CloudDataCache.put(likedKey, likedData)
@@ -462,10 +580,7 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         loadJob?.cancel()
         invalidateData()
         CloudDataCache.clearPlatform(platform)
-        binding.rvDailyPlaylists.models = emptyList<PlayListModel>()
-        binding.rvLiked.models = emptyList<MusicModel>()
-        binding.rvPlaylists.models = emptyList<PlayListModel>()
-        binding.rvArtists.models = emptyList<ArtistModel>()
+        clearLists()
         refreshUi()
         toast("已退出" + platformName() + "账号")
     }
