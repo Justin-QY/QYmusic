@@ -15,8 +15,10 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import com.bumptech.glide.Glide
 import com.bumptech.glide.load.resource.bitmap.CircleCrop
+import com.drake.engine.utils.dp
 import com.drake.net.Get
 import com.drake.tooltip.toast
+import kotlinx.coroutines.Deferred
 import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import com.qymusic.app.R
@@ -30,10 +32,10 @@ import com.qymusic.app.databinding.ItemListMusicBinding
 import com.qymusic.app.databinding.ItemPlaylistBinding
 import com.qymusic.app.model.ArtistModel
 import com.qymusic.app.model.MusicModel
-import com.qymusic.app.model.Page
 import com.qymusic.app.model.PlayListModel
 import com.qymusic.app.ui.activity.PlatformLoginActivity
 import com.qymusic.app.utils.CloudDataCache
+import com.qymusic.app.utils.CloudRepository
 import com.qymusic.app.utils.SleepTimerDialog
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
@@ -244,24 +246,40 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
      */
     private fun bindGrid(container: LinearLayout, count: Int, create: (Int) -> View) {
         container.removeAllViews()
-        var index = 0
-        while (index < count) {
+        val gap = 12.dp
+        // 固定三列：最后一行不足三个时用占位 View 补齐，保证每项宽度一致
+        val rows = (count + 2) / 3
+        for (rowIndex in 0 until rows) {
             val row = LinearLayout(requireContext()).apply {
                 orientation = LinearLayout.HORIZONTAL
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                )
             }
-            val columns = minOf(3, count - index)
-            repeat(columns) {
-                row.addView(
-                    create(index),
-                    LinearLayout.LayoutParams(0, ViewGroup.LayoutParams.WRAP_CONTENT, 1f)
+            repeat(3) { column ->
+                val itemIndex = rowIndex * 3 + column
+                val child = if (itemIndex < count) {
+                    create(itemIndex)
+                } else {
+                    View(requireContext())
+                }
+                val params = LinearLayout.LayoutParams(
+                    0,
+                    ViewGroup.LayoutParams.WRAP_CONTENT,
+                    1f
                 )
-                index++
+                // 列之间留出间距，最后一列不占右边距
+                if (column < 2) {
+                    params.marginEnd = gap
+                }
+                row.addView(child, params)
             }
-            container.addView(row)
+            val rowParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            // 行之间留出间距，最后一行不占下边距
+            if (rowIndex < rows - 1) {
+                rowParams.bottomMargin = gap
+            }
+            container.addView(row, rowParams)
         }
     }
 
@@ -448,8 +466,6 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         loadJob?.cancel()
         loadPlatform = target
 
-        val cookie = cookieOf(target)
-        val uid = uidOf(target)
         val isNeteaseTarget = target == PlatformLoginActivity.PLATFORM_NETEASE
 
         // 先渲染缓存，进入云端页立即有内容
@@ -476,81 +492,51 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
 
         loadJob = viewLifecycleOwner.lifecycleScope.launch {
             try {
-                val likedUrl = when (target) {
-                    PlatformLoginActivity.PLATFORM_QQ -> Api.QQ_LIKED
-                    PlatformLoginActivity.PLATFORM_KUGOU -> Api.KUGOU_LIKED
-                    else -> Api.NETEASE_LIKED
-                }
-                val playlistsUrl = when (target) {
-                    PlatformLoginActivity.PLATFORM_QQ -> Api.QQ_PLAYLISTS
-                    PlatformLoginActivity.PLATFORM_KUGOU -> Api.KUGOU_PLAYLISTS
-                    else -> Api.NETEASE_PLAYLISTS
-                }
-                val isNetease = target == PlatformLoginActivity.PLATFORM_NETEASE
-
-                val liked = async {
-                    Get<List<MusicModel>>(likedUrl) {
-                        addQuery("cookie", cookie)
-                        if (isNetease) {
-                            addQuery("uid", uid)
-                            addQuery("pageNo", 1)
-                            addQuery("pageSize", 30)
-                        } else {
-                            addQuery("limit", 30)
-                        }
-                    }.await()
-                }
-                val playlists = async {
-                    Get<List<PlayListModel>>(playlistsUrl) {
-                        addQuery("cookie", cookie)
-                        if (isNetease) {
-                            addQuery("uid", uid)
-                        }
-                    }.await()
-                }
-                val daily = async {
-                    Get<Page<PlayListModel>>(Api.catalog(Api.PLAYLIST_RECOMMEND)) {
-                        addQuery("id", "rcm")
-                    }.await().data
-                }
-                val artists = if (isNetease) {
-                    async {
-                        Get<List<ArtistModel>>(Api.NETEASE_ARTISTS) {
-                            addQuery("cookie", cookie)
-                        }.await()
-                    }
+                // 统一走 CloudRepository：与启动页预取 / 查看全部共享同一份请求，
+                // 同一数据不会并发拉两遍
+                val liked = async { CloudRepository.liked(target) }
+                val playlists = async { CloudRepository.playlists(target) }
+                val daily = async { CloudRepository.daily() }
+                val artists = if (isNeteaseTarget) {
+                    async { CloudRepository.artists(target) }
                 } else {
                     null
                 }
+
+                val dailyData = awaitOrNull(daily)
+                val likedData = awaitOrNull(liked)
+                val playlistsData = awaitOrNull(playlists)
+                val artistsData = artists?.let { awaitOrNull(it) }
 
                 // 请求期间用户切了平台则丢弃旧结果（正常情况下 Job 已被取消）
                 if (platform != target) {
                     return@launch
                 }
-                val dailyData = daily.await()
-                val likedData = liked.await()
-                val playlistsData = playlists.await()
-                val artistsData = artists?.await().orEmpty()
 
-                bindDaily(dailyData.take(10))
-                bindLiked(likedData.take(5))
-                bindPlaylists(playlistsData.take(6))
-                bindArtists(artistsData.take(6))
+                // 单项失败时保留缓存里已有的内容，不再清空
+                dailyData?.let { bindDaily(it.take(10)) }
+                likedData?.let { bindLiked(it.take(5)) }
+                playlistsData?.let { bindPlaylists(it.take(6)) }
+                artistsData?.let { bindArtists(it.take(6)) }
 
-                CloudDataCache.put(CloudDataCache.DAILY_KEY, dailyData)
-                CloudDataCache.put(likedKey, likedData)
-                CloudDataCache.put(playlistsKey, playlistsData)
-                if (isNeteaseTarget) {
-                    CloudDataCache.put(artistsKey, artistsData)
-                }
                 loadedPlatform = target
                 loadedAt = System.currentTimeMillis()
+                if (likedData == null && playlistsData == null) {
+                    toast("加载云端数据失败")
+                }
             } catch (e: kotlinx.coroutines.CancellationException) {
                 throw e
-            } catch (e: Exception) {
-                toast(e.message ?: "加载云端数据失败")
             }
         }
+    }
+
+    /** await 单项数据：失败返回 null，不影响其它块继续展示 */
+    private suspend fun <T> awaitOrNull(deferred: Deferred<T>): T? = try {
+        deferred.await()
+    } catch (e: kotlinx.coroutines.CancellationException) {
+        throw e
+    } catch (e: Exception) {
+        null
     }
 
     private fun invalidateData() {
@@ -579,7 +565,7 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
 
         loadJob?.cancel()
         invalidateData()
-        CloudDataCache.clearPlatform(platform)
+        CloudRepository.clearPlatform(platform)
         clearLists()
         refreshUi()
         toast("已退出" + platformName() + "账号")
@@ -595,18 +581,6 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
         PlatformLoginActivity.PLATFORM_QQ -> SPConfig.isQqLoggedIn()
         PlatformLoginActivity.PLATFORM_KUGOU -> SPConfig.isKugouLoggedIn()
         else -> SPConfig.isNeteaseLoggedIn()
-    }
-
-    private fun cookieOf(p: String): String = when (p) {
-        PlatformLoginActivity.PLATFORM_QQ -> SPConfig.qqCookie()
-        PlatformLoginActivity.PLATFORM_KUGOU -> SPConfig.kugouCookie()
-        else -> SPConfig.neteaseCookie()
-    }
-
-    private fun uidOf(p: String): Long = when (p) {
-        PlatformLoginActivity.PLATFORM_QQ -> SPConfig.qqUin().toLongOrNull() ?: 0L
-        PlatformLoginActivity.PLATFORM_KUGOU -> SPConfig.kugouUid()
-        else -> SPConfig.neteaseUid()
     }
 
     private fun nickname(): String = when (platform) {
@@ -932,6 +906,8 @@ class CloudFragment : BaseMusicAppbarFragment<FragmentCloudBinding>(R.layout.fra
                     }
                 }
 
+                // 换账号后旧缓存可能属于其它账号，先清掉
+                CloudRepository.clearPlatform(target)
                 invalidateData()
                 // 登录的是当前选中的平台才立刻刷新，否则等切过去再加载
                 if (platform == target) {

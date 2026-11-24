@@ -18,6 +18,8 @@ import com.qymusic.app.model.Page
 import com.qymusic.app.model.PlayListModel
 import com.qymusic.app.model.PlayListTagModel
 import com.qymusic.app.model.QueryPlayListParams
+import com.qymusic.app.utils.CloudDataCache
+import com.qymusic.app.utils.CloudPrefetch
 import com.qymusic.app.utils.query
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
@@ -75,6 +77,13 @@ class SplashActivity : AppCompatActivity() {
       // 进入主界面时播放服务直接复用，不再卡主线程。
       val cacheWarm = async(Dispatchers.IO) {
         runCatching { QYMusicApplication.getSimpleCache(this@SplashActivity) }
+      }
+
+      // 先载入上次落盘的云端数据，再在后台预取刷新；
+      // 放应用级作用域，不占用启动页停留时间，进入主界面后继续跑。
+      QYMusicApplication.launchInApp {
+        runCatching { CloudDataCache.warmFromDisk() }
+        runCatching { CloudPrefetch.prefetch() }
       }
 
       val ready = warmUp.await() != null

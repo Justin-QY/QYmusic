@@ -195,6 +195,22 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent" />
 
+        <!-- 缓冲 / 准备阶段显示转圈，代替播放图标 -->
+        <com.google.android.material.progressindicator.CircularProgressIndicator
+            android:id="@+id/play_loading"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:indeterminate="true"
+            android:visibility="gone"
+            app:indicatorColor="?attr/colorOnSecondaryContainer"
+            app:indicatorSize="32dp"
+            app:layout_constraintBottom_toBottomOf="@id/btn_play"
+            app:layout_constraintEnd_toEndOf="@id/btn_play"
+            app:layout_constraintStart_toStartOf="@id/btn_play"
+            app:layout_constraintTop_toTopOf="@id/btn_play"
+            app:trackThickness="3dp"
+            tools:visibility="visible" />
+
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btn_next"
             android:layout_width="@dimen/_70sdp"

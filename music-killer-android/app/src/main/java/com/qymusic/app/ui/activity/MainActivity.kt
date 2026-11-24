@@ -25,6 +25,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import androidx.core.view.isVisible
 import androidx.core.view.updatePadding
 import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.lifecycleScope
@@ -804,6 +805,7 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
         }
       }
       mainViewModel.updateIsPlaying(controller.isPlaying)
+      mainViewModel.updateIsLoading(controller.playbackState == Player.STATE_BUFFERING)
       mainViewModel.updateRepeatMode(controller.repeatMode)
       mainViewModel.updateCurrentPosition(controller.currentPosition)
     }, MoreExecutors.directExecutor())
@@ -811,6 +813,10 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
 
   override fun onIsPlayingChanged(isPlaying: Boolean) {
     mainViewModel.updateIsPlaying(isPlaying)
+  }
+
+  override fun onPlaybackStateChanged(playbackState: Int) {
+    mainViewModel.updateIsLoading(playbackState == Player.STATE_BUFFERING)
   }
 
   override fun onMediaItemTransition(mediaItem: MediaItem?, reason: Int) {
@@ -863,6 +869,13 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
           binding.btnPlay.setImageResource(
             if (playing) R.drawable.baseline_pause_24 else R.drawable.baseline_play_arrow_24
           )
+        }
+      }
+      // 缓冲 / 准备阶段：播放图标让位给转圈，避免点了看起来没反应
+      launch {
+        mainViewModel.isLoading.collect { loading ->
+          binding.playLoading.isVisible = loading
+          binding.btnPlay.alpha = if (loading) 0f else 1f
         }
       }
     }

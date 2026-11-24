@@ -8,6 +8,7 @@ import android.widget.SeekBar
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.view.HapticFeedbackConstantsCompat
 import androidx.core.view.ViewCompat
+import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
@@ -56,6 +57,11 @@ class MusicPlayFragment :
      * 暂停状态 TAG
      */
     private const val TAG_PAUSE = 2
+
+    /**
+     * 缓冲 / 准备中 TAG
+     */
+    private const val TAG_LOADING = 3
 
     /**
      * 进度更新间隔
@@ -130,6 +136,7 @@ class MusicPlayFragment :
     // 同步播放状态 / 循环模式 / 进度：从后台回来或 Activity 重建后，
     // 底部播放控件不该因为 ViewModel 状态丢失而消失或显示成暂停。
     mainViewModel.updateIsPlaying(controller.isPlaying)
+    mainViewModel.updateIsLoading(controller.playbackState == Player.STATE_BUFFERING)
     mainViewModel.updateRepeatMode(controller.repeatMode)
     mainViewModel.updateCurrentPosition(controller.currentPosition)
 
@@ -403,6 +410,9 @@ class MusicPlayFragment :
    * 播放状态改变
    */
   override fun onPlaybackStateChanged(playbackState: Int) {
+    // 缓冲 / 准备阶段播放按钮显示转圈；同时同步给底栏
+    mainViewModel.updateIsLoading(playbackState == Player.STATE_BUFFERING)
+    updatePlayBtn(mediaController.isPlaying)
     if (mediaController.isPlaying) {
       // 正在播放中
     } else if (playbackState != Player.STATE_BUFFERING) {
@@ -458,8 +468,14 @@ class MusicPlayFragment :
    * 更新播放按钮
    */
   private fun updatePlayBtn(isPlaying: Boolean) {
-    if (mediaController.playbackState == Player.STATE_BUFFERING) {
-      // 正在缓冲时
+    val loading = mediaController.playbackState == Player.STATE_BUFFERING
+    binding.playLoading.isVisible = loading
+    if (loading) {
+      // 正在缓冲 / 准备：隐藏播放暂停图标，只留转圈，避免看起来点了没反应
+      if (binding.btnPlay.tag != TAG_LOADING) {
+        binding.btnPlay.tag = TAG_LOADING
+        binding.btnPlay.icon = null
+      }
       isRunningProgress = false
       return
     }

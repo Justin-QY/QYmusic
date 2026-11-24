@@ -34,6 +34,11 @@ import com.drake.tooltip.toast
 import com.scwang.smart.refresh.footer.ClassicsFooter
 import com.scwang.smart.refresh.header.MaterialHeader
 import com.scwang.smart.refresh.layout.SmartRefreshLayout
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 import okhttp3.Cache
 import org.litepal.LitePal
 import com.qymusic.app.config.Api
@@ -51,6 +56,11 @@ class QYMusicApplication : Application() {
 
     @Volatile
     private var mediaCache: SimpleCache? = null
+
+    /** 应用级后台任务，不随页面销毁取消（启动预取等） */
+    private val appScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+
+    fun launchInApp(block: suspend CoroutineScope.() -> Unit): Job = appScope.launch { block() }
 
     /**
      * 获取（必要时创建）2GB 媒体缓存。

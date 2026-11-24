@@ -38,6 +38,10 @@ class MainViewModel : ViewModel() {
   private val _isPlaying = MutableStateFlow(false)
   val isPlaying: StateFlow<Boolean> = _isPlaying.asStateFlow()
 
+  /** 播放器正在准备 / 缓冲：播放按钮显示转圈，避免点了没反应 */
+  private val _isLoading = MutableStateFlow(false)
+  val isLoading: StateFlow<Boolean> = _isLoading.asStateFlow()
+
   private val _currentPosition = MutableStateFlow(0L)
   val currentPosition: StateFlow<Long> = _currentPosition.asStateFlow()
 
@@ -90,6 +94,13 @@ class MainViewModel : ViewModel() {
 
   fun updateIsPlaying(isPlaying: Boolean = !_isPlaying.value) {
     _isPlaying.value = isPlaying
+  }
+
+  /** 由播放器状态驱动：STATE_BUFFERING 时播放按钮显示转圈 */
+  fun updateIsLoading(loading: Boolean) {
+    if (_isLoading.value != loading) {
+      _isLoading.value = loading
+    }
   }
 
   fun updateCurrentPosition(position: Long) {
