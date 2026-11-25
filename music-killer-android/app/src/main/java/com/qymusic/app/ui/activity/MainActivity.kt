@@ -423,6 +423,9 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     // 进程仍存活、只是 Activity 被系统销毁时：恢复上次页面，不重新加载
     restoreUiState(navController, savedInstanceState)
     handleLaunchIntent(intent)
+    // 播放控制器跟着 Activity 走，不在 onStart/onStop 里反复建/释放：
+    // 每次切回前台都重新连接会话，会卡一下，也容易把播放状态同步乱
+    connectPlayerController()
   }
 
   /**
@@ -769,16 +772,11 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     })
   }
 
-  override fun onStart() {
-    super.onStart()
-    connectPlayerController()
-  }
-
-  override fun onStop() {
+  override fun onDestroy() {
     appController?.removeListener(this)
     appController?.release()
     appController = null
-    super.onStop()
+    super.onDestroy()
   }
 
   private fun connectPlayerController() {

@@ -56,13 +56,11 @@ class SplashActivity : AppCompatActivity() {
     super.onCreate(savedInstanceState)
 
     // 桌面再次拉起时，任务栈里通常还留着主界面（启动页启动完就 finish 了），
-    // 这时系统会把启动页重新叠到主界面上。用 CLEAR_TOP 把原主界面直接提上来，
-    // 既不新建 Activity，也不会停留在空白任务里。
+    // 系统会把启动页重新叠到主界面上。isTaskRoot=false 说明下面就是主界面，
+    // 直接移除自己即可——不新建 Activity、不做转场，回到前台不会卡一下。
     if (!isTaskRoot) {
-      startActivity(Intent(this, MainActivity::class.java).apply {
-        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
-      })
       finish()
+      overridePendingTransition(0, 0)
       return
     }
 

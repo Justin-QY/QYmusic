@@ -27,6 +27,7 @@ object PlaybackStateStore {
   private const val KEY_START = "playback_queue_start"
   private const val KEY_INDEX = "playback_index"
   private const val KEY_POSITION = "playback_position"
+  private const val KEY_PLAYING = "playback_playing"
 
   private const val MAX_ITEMS = 300
 
@@ -38,6 +39,8 @@ object PlaybackStateStore {
     /** 完整队列中的当前曲目下标 */
     val index: Int,
     val position: Long,
+    /** 保存时是否处于「要继续播放」的状态：恢复后据此决定是自动续播还是停在暂停 */
+    val playing: Boolean = false,
   )
 
   private val serializer = ListSerializer(MusicModel.serializer())
@@ -60,9 +63,11 @@ object PlaybackStateStore {
     val index = player.currentMediaItemIndex
     if (index == C.INDEX_UNSET) return
     val position = player.currentPosition.coerceAtLeast(0L)
+    val playing = player.playWhenReady
     writer.execute {
       KEY_INDEX put index
       KEY_POSITION put position
+      KEY_PLAYING put playing
     }
   }
 
@@ -79,6 +84,7 @@ object PlaybackStateStore {
       start = start,
       index = (absoluteIndex - start).coerceIn(0, items.lastIndex),
       position = KEY_POSITION.getRequired(0L),
+      playing = KEY_PLAYING.getRequired(false),
     )
   }.getOrNull()
 
@@ -90,6 +96,7 @@ object PlaybackStateStore {
       KEY_START.remove()
       KEY_INDEX.remove()
       KEY_POSITION.remove()
+      KEY_PLAYING.remove()
     }
   }
 
@@ -118,6 +125,7 @@ object PlaybackStateStore {
       start = start,
       index = if (current == C.INDEX_UNSET) 0 else current,
       position = if (current == C.INDEX_UNSET) 0L else player.currentPosition.coerceAtLeast(0L),
+      playing = player.playWhenReady,
     )
   }
 
@@ -128,5 +136,6 @@ object PlaybackStateStore {
     KEY_START put snapshot.start
     KEY_INDEX put snapshot.index
     KEY_POSITION put snapshot.position
+    KEY_PLAYING put snapshot.playing
   }
 }

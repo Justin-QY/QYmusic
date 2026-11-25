@@ -19,6 +19,7 @@ import androidx.core.content.ContextCompat;
 import androidx.media3.common.C;
 import androidx.media3.common.MediaItem;
 import androidx.media3.common.MediaMetadata;
+import androidx.media3.common.PlaybackException;
 import androidx.media3.common.Player;
 import androidx.media3.common.util.UnstableApi;
 import androidx.media3.datasource.DataSource;
@@ -109,6 +110,10 @@ public class MusicService extends MediaSessionService implements Player.Listener
 
     /** 已经自动恢复过的歌曲（source|id），同一首歌只重试一次，防止死循环 */
     private final java.util.Set<String> truncationRecoveryDone =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** 已经因为播放错误重连过的（source|id|错误码），防止死循环 */
+    private final java.util.Set<String> errorRecoveryDone =
             java.util.concurrent.ConcurrentHashMap.newKeySet();
 
     /** 最近一次观察到的播放位置，用于判断歌曲是否「没放完」 */
@@ -240,8 +245,13 @@ public class MusicService extends MediaSessionService implements Player.Listener
         } finally {
             restoringState = false;
         }
+        // 上次是「在播」状态（进程被系统清理 / 服务被重建）：接着播，
+        // 否则用户切几次后台回来就变成暂停，感觉像歌被吃掉了。
+        if (snapshot.getPlaying()) {
+            mExoPlayer.play();
+        }
         Log.i(TAG, "已恢复上次播放: " + items.size() + " 首, index=" + index
-                + ", position=" + position);
+                + ", position=" + position + ", playing=" + snapshot.getPlaying());
     }
 
     @Override
@@ -277,9 +287,11 @@ public class MusicService extends MediaSessionService implements Player.Listener
         if (mExoPlayer == null) {
             return;
         }
-        // 播放 / 暂停切换时立即落盘；播放中再每 5 秒记录一次进度
+        // 播放 / 暂停切换时只记录进度和播放标志，不重新序列化整个队列：
+        // 队列内容只在切歌时变化，onIsPlayingChanged 里做全量 capture 会让主线程
+        // 反射读取几百首歌的元数据，切换前后台时会明显卡一下。
         if (!restoringState) {
-            PlaybackStateStore.save(mExoPlayer);
+            PlaybackStateStore.savePosition(mExoPlayer);
         }
         stateSaveHandler.removeCallbacks(savePositionTask);
         stateSaveHandler.removeCallbacks(trackPositionTask);
@@ -388,6 +400,52 @@ public class MusicService extends MediaSessionService implements Player.Listener
         if (!restoringState
                 && (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_IDLE)) {
             PlaybackStateStore.save(mExoPlayer);
+        }
+    }
+
+    /**
+     * 播放出错（网络抖动、解析地址过期）时自动重连一次。
+     *
+     * <p>之前出错后播放器直接落到 IDLE，界面看起来就是「歌自己暂停了」。
+     * 这里清掉该曲的解析地址缓存，从原进度重新 prepare + seek + play，
+     * 同一首歌的同一个错误码只重试一次，避免网络真的不通时来回重试。</p>
+     */
+    @Override
+    public void onPlayerError(@NonNull PlaybackException error) {
+        if (mExoPlayer == null || restoringState) {
+            return;
+        }
+        int index = mExoPlayer.getCurrentMediaItemIndex();
+        long position = Math.max(0L, mExoPlayer.getCurrentPosition());
+        MediaItem item = mExoPlayer.getCurrentMediaItem();
+        MusicModel model = item == null ? null : PlayUtilsKt.getMusicInfo(item.mediaMetadata);
+        Log.e(TAG, "播放错误 code=" + error.getErrorCodeName()
+                + " id=" + (model == null ? "-" : model.getId()) + " index=" + index, error);
+        if (model == null || model.getId() == 0L || index == C.INDEX_UNSET) {
+            return;
+        }
+        String key = model.getSource() + "|" + model.getId() + "|" + error.errorCode;
+        if (!errorRecoveryDone.add(key)) {
+            ToastKt.toast("播放失败，请检查网络后重试");
+            return;
+        }
+        String bridge = bridgeOf(item);
+        stateSaveHandler.post(() -> retryAfterError(model, index, position, bridge));
+    }
+
+    /** 清掉过期的解析地址后，从原位置重新连接 */
+    private void retryAfterError(MusicModel model, int index, long position, String bridge) {
+        if (mExoPlayer == null || mExoPlayer.getCurrentMediaItemIndex() != index) {
+            return;
+        }
+        ApiUriResolve.clearCachedUrl(model.getSource(), String.valueOf(model.getId()), bridge);
+        try {
+            mExoPlayer.prepare();
+            mExoPlayer.seekTo(index, position);
+            mExoPlayer.play();
+            ToastKt.toast("播放中断，正在重新连接");
+        } catch (Exception e) {
+            Log.w(TAG, "播放错误恢复失败: " + e.getMessage());
         }
     }
 
