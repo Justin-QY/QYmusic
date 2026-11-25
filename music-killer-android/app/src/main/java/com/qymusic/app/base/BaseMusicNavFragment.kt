@@ -7,7 +7,6 @@ import android.content.Intent
 import android.content.IntentFilter
 import android.net.ConnectivityManager
 import android.net.NetworkCapabilities
-import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.view.View
@@ -15,7 +14,6 @@ import androidx.annotation.LayoutRes
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.Toolbar
 import androidx.core.content.ContextCompat
-import androidx.core.net.toUri
 import androidx.databinding.DataBindingUtil
 import androidx.databinding.ViewDataBinding
 import androidx.fragment.app.Fragment
@@ -24,7 +22,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.C
 import androidx.media3.common.MediaItem
-import androidx.media3.common.MediaMetadata
 import androidx.media3.session.MediaController
 import androidx.media3.session.SessionToken
 import androidx.navigation.NavController
@@ -50,8 +47,9 @@ import com.qymusic.app.service.MusicService
 import com.qymusic.app.ui.activity.MainActivity
 import com.qymusic.app.ui.activity.MainViewModel
 import com.qymusic.app.utils.SpUtils.getRequired
+import com.qymusic.app.utils.playUri
 import com.qymusic.app.utils.startPlayback
-import com.qymusic.app.utils.toBundle
+import com.qymusic.app.utils.toMediaItem
 
 /**
  * 导航基类（不包含Appbar）
@@ -337,63 +335,12 @@ abstract class BaseMusicNavFragment<V : ViewDataBinding>(@LayoutRes contentLayou
   }
 
   /**
-   * 构建播放地址
+   * 构建 MedialItem 对象。
+   *
+   * 地址与元数据的构建统一放在 [toMediaItem]，播放队列落盘恢复时也复用同一份逻辑。
    */
-  private fun MediaItem.Builder.createPlayUrl(musicModel: MusicModel): MediaItem.Builder {
-    if (musicModel.localPath.isNotEmpty()) {
-      return setUri("file://" + musicModel.localPath)
-    }
-    // 播放任务前先取消
-    var currentBridge = effectiveBridge()
-    if (currentBridge == MusicBridge.FLAC_2000K.level && !musicModel.hasLossless) {
-      // 如果当前选择的是无损音质，但是音频不支持无损，强制使用下一等级音质
-      currentBridge = MusicBridge.MP3_320K.level
-    }
-    return setUri(
-      Uri.Builder()
-        .scheme("http")
-        .authority("localhost")
-        .appendQueryParameter("id", musicModel.id.toString())
-        .appendQueryParameter("bridge", currentBridge)
-        .appendQueryParameter("source", musicModel.source)
-        .appendQueryParameter("sourceId", musicModel.sourceId)
-        .apply {
-          if (musicModel.source == "qq") {
-            appendQueryParameter("qqCookie", SPConfig.qqCookie())
-          }
-          if (musicModel.source == "kg") {
-            appendQueryParameter("kgCookie", SPConfig.kugouCookie())
-          }
-        }
-        .appendQueryParameter("name", musicModel.showName)
-        .appendQueryParameter("singer", musicModel.artist)
-        .appendQueryParameter("album", musicModel.album)
-        .appendQueryParameter("duration", musicModel.duration.toString())
-        .build()
-    )
-  }
-
-  /**
-   * 构建 MedialItem 对象
-   */
-  private fun createMediaItem(musicModel: MusicModel): MediaItem {
-    val pic = musicModel.pic120.ifEmpty { musicModel.pic }
-    return MediaItem.Builder()
-      .createPlayUrl(musicModel)
-      .setMediaId(musicModel.id.toString())
-      .setMediaMetadata(
-        MediaMetadata.Builder()
-          // 通知栏 / 锁屏 / 车机都读这里的标题和歌手
-          .setTitle(musicModel.name)
-          .setArtist(musicModel.artist)
-          .setAlbumTitle(musicModel.album)
-          .setArtworkUri(pic.toUri())
-          .setIsPlayable(true)
-          .setExtras(musicModel.toBundle())
-          .build()
-      )
-      .build()
-  }
+  private fun createMediaItem(musicModel: MusicModel): MediaItem =
+    musicModel.toMediaItem(effectiveBridge())
 
   /**
    * 重新播放当前音频
@@ -420,7 +367,9 @@ abstract class BaseMusicNavFragment<V : ViewDataBinding>(@LayoutRes contentLayou
       val mediaItem = mediaController.currentMediaItem ?: return@scope
       // 不要再先 stop()：stop() 会把播放器打到 IDLE，紧接着的播放命令会被忽略，
       // 表现为「点了播放没反应，要再点一次」。直接替换地址再播即可。
-      val newMediaItem = mediaItem.buildUpon().createPlayUrl(musicModel).build()
+      val newMediaItem = mediaItem.buildUpon()
+        .setUri(musicModel.playUri(effectiveBridge()))
+        .build()
       mediaController.replaceMediaItem(currentMediaItemIndex, newMediaItem)
       mediaController.startPlayback()
     }

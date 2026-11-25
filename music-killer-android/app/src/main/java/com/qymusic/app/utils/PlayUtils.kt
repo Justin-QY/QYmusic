@@ -1,11 +1,13 @@
 package com.qymusic.app.utils
 
+import android.net.Uri
 import android.os.Bundle
-import androidx.core.os.bundleOf
-import androidx.core.os.persistableBundleOf
+import androidx.core.net.toUri
+import androidx.media3.common.MediaItem
 import androidx.media3.common.MediaMetadata
-import androidx.media3.common.Metadata
 import androidx.media3.common.Player
+import com.qymusic.app.config.SPConfig
+import com.qymusic.app.enums.MusicBridge
 import com.qymusic.app.model.MusicModel
 import java.lang.reflect.Field
 import java.util.Locale
@@ -80,4 +82,75 @@ fun MediaMetadata.getMusicInfo(): MusicModel? {
     it.set(musicModel, extras.get(it.name))
   }
   return musicModel
+}
+
+/**
+ * 构建播放地址。
+ *
+ * 真实 CDN 地址由 [com.qymusic.app.service.MusicService] 的 ResolvingDataSource 解析，
+ * 这里只负责携带 id / 音质 / 平台等解析参数；本地歌曲直接用 file:// 地址。
+ *
+ * @param bridge 当前音质；无损不可用时自动回落到 320k
+ */
+fun MusicModel.playUri(bridge: String = SPConfig.currentBridge()): Uri {
+  if (localPath.isNotEmpty()) {
+    return "file://$localPath".toUri()
+  }
+  val actualBridge = if (bridge == MusicBridge.FLAC_2000K.level && !hasLossless) {
+    MusicBridge.MP3_320K.level
+  } else {
+    bridge
+  }
+  return Uri.Builder()
+    .scheme("http")
+    .authority("localhost")
+    .appendQueryParameter("id", id.toString())
+    .appendQueryParameter("bridge", actualBridge)
+    .appendQueryParameter("source", source)
+    .appendQueryParameter("sourceId", sourceId)
+    .apply {
+      if (source == "qq") {
+        appendQueryParameter("qqCookie", SPConfig.qqCookie())
+      }
+      if (source == "kg") {
+        appendQueryParameter("kgCookie", SPConfig.kugouCookie())
+      }
+    }
+    .appendQueryParameter("name", showName)
+    .appendQueryParameter("singer", artist)
+    .appendQueryParameter("album", album)
+    .appendQueryParameter("duration", duration.toString())
+    .build()
+}
+
+/**
+ * 构建播放项，播放队列、通知栏、以及进程被杀后的恢复都共用这一份元数据。
+ */
+/**
+ * 媒体缓存 key。
+ *
+ * - 带音质：同一首歌切到不同音质时不要复用旧缓存；
+ * - v4：旧版（v3 及更早）可能缓存过官方源返回的试听片段。那些短文件被当成完整音频后，
+ *   ExoPlayer 播到片段末尾就会自动切下一首，表现为「歌没放完就跳了」。升级 key 后不再命中旧缓存。
+ */
+fun mediaCacheKey(source: String, id: String, bridge: String): String =
+  "$source-$id-${bridge.ifEmpty { "default" }}-v4"
+
+fun MusicModel.toMediaItem(bridge: String = SPConfig.currentBridge()): MediaItem {
+  val pic = pic120.ifEmpty { pic }
+  return MediaItem.Builder()
+    .setUri(playUri(bridge))
+    .setMediaId(id.toString())
+    .setMediaMetadata(
+      MediaMetadata.Builder()
+        // 通知栏 / 锁屏 / 车机都读这里的标题和歌手
+        .setTitle(name)
+        .setArtist(artist)
+        .setAlbumTitle(album)
+        .setArtworkUri(pic.toUri())
+        .setIsPlayable(true)
+        .setExtras(toBundle())
+        .build()
+    )
+    .build()
 }

@@ -5,10 +5,13 @@ import androidx.appcompat.app.AppCompatDelegate
 import androidx.navigation.fragment.findNavController
 import com.drake.tooltip.toast
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.hjq.permissions.Permission
+import com.hjq.permissions.XXPermissions
 import com.qymusic.app.R
 import com.qymusic.app.base.BaseMusicAppbarFragment
 import com.qymusic.app.config.SPConfig
 import com.qymusic.app.databinding.FragmentGeneralSettingsBinding
+import com.qymusic.app.utils.KeepAliveUtils
 
 /**
  * 通用设置（设置 → 通用设置）。
@@ -60,6 +63,53 @@ class GeneralSettingsFragment :
     binding.itemLyricSettings.setOnClickListener {
       findNavController().navigate(R.id.action_general_lyrics)
     }
+
+    binding.itemKeepAlive.setOnClickListener {
+      showKeepAliveDialog()
+    }
+  }
+
+  /**
+   * 后台保活：忽略电池优化（避免后台播放被系统清理）、通知权限（前台播放通知）、
+   * 自启动管理（小米 / 澎湃 OS）。
+   */
+  private fun showKeepAliveDialog() {
+    val context = requireContext()
+    val batteryGranted = KeepAliveUtils.isIgnoringBatteryOptimizations(context)
+    val notificationGranted = KeepAliveUtils.hasNotificationPermission(context)
+    val items = arrayOf(
+      if (batteryGranted) "电池优化：已关闭" else "关闭电池优化",
+      if (notificationGranted) "通知权限：已开启" else "授予通知权限",
+      "自启动管理",
+    )
+    MaterialAlertDialogBuilder(context)
+      .setTitle("后台保活")
+      .setMessage("系统清理后台后音乐会被暂停，重新打开 App 也会重新加载。建议完成以下设置：")
+      .setItems(items) { _, which ->
+        when (which) {
+          0 -> {
+            if (batteryGranted) {
+              toast("已关闭电池优化")
+            } else {
+              KeepAliveUtils.requestIgnoreBatteryOptimizations(requireActivity())
+            }
+          }
+
+          1 -> {
+            if (notificationGranted) {
+              toast("通知权限已开启")
+            } else {
+              XXPermissions.with(requireActivity())
+                .permission(Permission.POST_NOTIFICATIONS)
+                .request(null)
+            }
+          }
+
+          2 -> KeepAliveUtils.openAutoStartSettings(requireActivity())
+        }
+      }
+      .setNegativeButton("关闭", null)
+      .show()
   }
 
   override fun initData() {
@@ -74,7 +124,7 @@ class GeneralSettingsFragment :
     syncing = true
 
     binding.tvLyricSettingsState.text = lyricSummary()
-
+    binding.tvKeepAliveState.text = KeepAliveUtils.statusSummary(requireContext())
 
     syncing = false
   }

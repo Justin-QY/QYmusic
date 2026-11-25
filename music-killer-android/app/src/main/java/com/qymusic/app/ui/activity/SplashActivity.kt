@@ -44,12 +44,35 @@ class SplashActivity : AppCompatActivity() {
 
     /** 预取最长等待时间，超时直接进入 App */
     const val WARM_UP_TIMEOUT_MS = 4_000L
+
+    /** 本进程是否已经展示过启动页：温启动直接进入主界面，不再等预取 */
+    @Volatile
+    var shownInProcess = false
   }
 
   private var started = false
 
   override fun onCreate(savedInstanceState: Bundle?) {
     super.onCreate(savedInstanceState)
+
+    // 桌面再次拉起时，任务栈里通常还留着主界面（启动页启动完就 finish 了），
+    // 这时系统会把启动页重新叠到主界面上。用 CLEAR_TOP 把原主界面直接提上来，
+    // 既不新建 Activity，也不会停留在空白任务里。
+    if (!isTaskRoot) {
+      startActivity(Intent(this, MainActivity::class.java).apply {
+        addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP)
+      })
+      finish()
+      return
+    }
+
+    // 进程还活着（例如按返回退出主界面后又被拉起）：跳过预加载，立即进入。
+    if (shownInProcess) {
+      enterMain(animate = false)
+      return
+    }
+    shownInProcess = true
+
     WindowCompat.setDecorFitsSystemWindows(window, false)
     setContentView(R.layout.activity_splash)
 
@@ -126,13 +149,15 @@ class SplashActivity : AppCompatActivity() {
     tasks.forEach { it.await() }
   }
 
-  private fun enterMain() {
+  private fun enterMain(animate: Boolean = true) {
     if (started) {
       return
     }
     started = true
     startActivity(Intent(this, MainActivity::class.java))
-    overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+    if (animate) {
+      overridePendingTransition(android.R.anim.fade_in, android.R.anim.fade_out)
+    }
     finish()
   }
 }

@@ -66,7 +66,11 @@ public class PlayController {
                     qqInfo.setMusicId(Long.parseLong(id));
                 } catch (Exception ignored) {
                 }
-                return Result.success(qqInfo);
+                // 未登录 / 未付费时 vkey 有时只给试听片段，校验后再决定是否采用
+                if (playUrlResolver.isWholeTrack(qqInfo, PlayUrlResolver.durationSeconds(duration))) {
+                    return Result.success(qqInfo);
+                }
+                log.info("QQ 原生 vkey 返回疑似试听片段，进入兜底链路 songmid={}", sourceId);
             }
             // 2. vkey 为空（未登录 / 付费 / 版权）：进入洛雪音源脚本 → 第三方聚合的串行兜底
             log.info("QQ 原生 vkey 未取到地址 songmid={}，进入兜底链路", sourceId);

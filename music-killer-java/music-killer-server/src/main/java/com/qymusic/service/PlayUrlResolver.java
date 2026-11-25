@@ -84,6 +84,20 @@ public class PlayUrlResolver {
     /** 第三方聚合接口单次请求的超时 */
     private static final long REQUEST_TIMEOUT_MS = 8_000L;
 
+    /** 校验试听片段时的 HEAD / Range 请求超时 */
+    private static final int LENGTH_CHECK_TIMEOUT_MS = 4_000;
+
+    /**
+     * 判断「完整音频」用的最小码率：96kbps。
+     *
+     * <p>试听片段通常只有 30~60 秒，文件大小会明显小于按 96kbps 估算的完整时长；
+     * 取一个低于常见音乐码率的保守值，避免把正常的低码率歌曲误判成片段。</p>
+     */
+    private static final long MIN_FULL_BITRATE = 96_000L;
+
+    /** 少于这个时长（秒）的音频不做截断校验，避免误伤短音频 */
+    private static final int MIN_DURATION_FOR_CHECK = 120;
+
     private final ObjectMapper mapper = new ObjectMapper();
 
     private final Map<String, CacheEntry> cache = new ConcurrentHashMap<>();
@@ -184,7 +198,7 @@ public class PlayUrlResolver {
                 name == null ? "" : name,
                 singer == null ? "" : singer,
                 album == null ? "" : album,
-                duration == null ? 0 : duration);
+                durationSeconds(duration));
 
         PlayInfo info = null;
         try {
@@ -234,7 +248,7 @@ public class PlayUrlResolver {
         PlayInfo info = null;
         if (allowNative) {
             info = resolveFromPlatform(source, platformId, bridge, kgCookie, deadline);
-            if (isUsable(info)) {
+            if (isUsable(info) && !isTruncated(info, song.duration(), "平台原生")) {
                 return info;
             }
         } else {
@@ -348,6 +362,79 @@ public class PlayUrlResolver {
         return "";
     }
 
+    // ------------------------------------------------------------ 音频完整性校验
+
+    /**
+     * 客户端传入的时长统一成秒。
+     *
+     * <p>目录接口返回的都是秒（网易云 / 酷狗目录里已从毫秒换算），但历史客户端或直接调用
+     * 接口时可能传毫秒；超过 1 小时的值按毫秒处理，避免把 320400 当成 320400 秒。</p>
+     */
+    public static int durationSeconds(Integer duration) {
+        if (duration == null || duration <= 0) {
+            return 0;
+        }
+        if (duration > 3600) {
+            return Math.max(1, Math.round(duration / 1000f));
+        }
+        return duration;
+    }
+
+    /** 供 PlayController 校验 QQ 原生 vkey 结果 */
+    public boolean isWholeTrack(PlayInfo info, int expectedSeconds) {
+        return !isTruncated(info, expectedSeconds, "平台原生");
+    }
+
+    /**
+     * 判断音源返回的是否只是试听片段。
+     *
+     * <p>客户端播放到文件末尾会自动切下一首，试听片段听起来就像「歌没放完就跳了」。
+     * 这里用响应头里的文件大小做保守估算：按 96kbps 计算的完整文件都应大于
+     * {@code 时长 × 96kbps / 8}，明显小于这个值就判定为试听 / 截断，继续尝试下一级音源。
+     * 拿不到长度时信任音源，避免网络限制导致误杀。</p>
+     */
+    private boolean isTruncated(PlayInfo info, int expectedSeconds, String stage) {
+        if (info == null || expectedSeconds < MIN_DURATION_FOR_CHECK) {
+            return false;
+        }
+        long size = contentLength(info.getUrl());
+        if (size <= 0) {
+            return false;
+        }
+        long minFullBytes = expectedSeconds * MIN_FULL_BITRATE / 8;
+        if (size >= minFullBytes) {
+            return false;
+        }
+        log.info("{} 返回疑似试听片段，已跳过 musicId={} size={}KB 期望={}s（完整至少 {}KB）",
+                stage, info.getMusicId(), size / 1024, expectedSeconds, minFullBytes / 1024);
+        return true;
+    }
+
+    /** HEAD 取 Content-Length；失败返回 0（表示无法判断，不拦截） */
+    private long contentLength(String url) {
+        if (url == null || url.isBlank()) {
+            return 0L;
+        }
+        try (cn.hutool.http.HttpResponse response = cn.hutool.http.HttpRequest.head(url)
+                .addHeaders(Map.of("User-Agent", USER_AGENT))
+                .timeout(LENGTH_CHECK_TIMEOUT_MS)
+                .execute()) {
+            int status = response.getStatus();
+            if (status < 200 || status >= 400) {
+                return 0L;
+            }
+            String length = response.header("Content-Length");
+            if (length == null || length.isBlank()) {
+                length = response.header("content-length");
+            }
+            long parsed = parseLong(length == null ? "" : length.trim());
+            return Math.max(0L, parsed);
+        } catch (Exception e) {
+            log.debug("获取音频长度失败 {} : {}", url, e.getMessage());
+            return 0L;
+        }
+    }
+
     // ------------------------------------------------------------------ 音源脚本
 
     /**
@@ -363,7 +450,7 @@ public class PlayUrlResolver {
                 break;
             }
             PlayInfo info = resolveFromLxScript(source, id, candidateBridge, song, musicId, budget);
-            if (info != null) {
+            if (info != null && !isTruncated(info, song.duration(), "音源脚本")) {
                 if (!candidateBridge.equals(bridge)) {
                     log.info("音源脚本已降级 id={} 期望={} 实际={}", id, bridge, candidateBridge);
                 }

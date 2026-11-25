@@ -8,12 +8,9 @@ import android.content.Intent
 import android.content.ServiceConnection
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
-import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
-import android.os.PowerManager
-import android.provider.Settings
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
@@ -30,6 +27,7 @@ import androidx.core.view.updatePadding
 import androidx.core.view.updateLayoutParams
 import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.Player
+import androidx.navigation.NavController
 import androidx.navigation.fragment.NavHostFragment
 import androidx.navigation.ui.setupWithNavController
 import com.bumptech.glide.Glide
@@ -67,6 +65,7 @@ import com.google.common.util.concurrent.MoreExecutors
 import com.qymusic.app.service.MusicService
 import com.qymusic.app.utils.getMusicInfo
 import com.qymusic.app.utils.AppUpdater
+import com.qymusic.app.utils.KeepAliveUtils
 import com.qymusic.app.utils.UiStateStore
 import com.qymusic.app.utils.fixNestedScroll
 import com.qymusic.app.utils.json
@@ -131,14 +130,31 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
   /** 播放器控制器：Activity 从后台回来时主动同步一次，保证底栏控件不消失 */
   private var appController: MediaController? = null
 
-  private val onBackPressedCallback = object : OnBackPressedCallback(false) {
+  private val onBackPressedCallback = object : OnBackPressedCallback(true) {
     override fun handleOnBackPressed() {
-      if (bottomBarBehavior.state != BottomSheetBehavior.STATE_COLLAPSED) {
-        // 按下返回按钮时，如果底栏是展开的状态，就将底栏设置为折叠的状态
+      // 展开的播放面板优先收起
+      if (this@MainActivity::bottomBarBehavior.isInitialized &&
+        bottomBarBehavior.state != BottomSheetBehavior.STATE_COLLAPSED
+      ) {
         mainViewModel.changeBottomBarExpand(false)
+        return
       }
+      // 还有页面可退就交给 Navigation
+      val nav = currentNavController()
+      if (nav != null && nav.popBackStack()) {
+        return
+      }
+      // 已经在首页根页面：回到后台而不是销毁界面。
+      // 这样从桌面点回来能直接恢复原页面，不会重新走启动页；后台播放也不会中断。
+      moveTaskToBack(true)
     }
   }
+
+  /** 按需查找 NavController：init() 早于 onCreate 里的局部引用，不能只存一次 */
+  private fun currentNavController(): NavController? = runCatching {
+    (supportFragmentManager.findFragmentById(R.id.nav_host_fragment) as? NavHostFragment)
+      ?.navController
+  }.getOrNull()
 
   private var serviceBound = false
 
@@ -253,7 +269,10 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
     if (!XXPermissions.isGrantedPermissions(this, Permission.POST_NOTIFICATIONS)) {
       MaterialAlertDialogBuilder(this)
         .setTitle("展示通知")
-        .setMessage("需要通知权限，App才能发送下载时的通知")
+        .setMessage(
+          "需要通知权限，App 才能显示下载进度和后台播放控制（通知栏 / 锁屏）。\n" +
+            "不授权时，后台播放更容易被系统清理。"
+        )
         .setPositiveButton("授权") { dialog, which ->
           XXPermissions.with(this).permission(
             Permission.POST_NOTIFICATIONS
@@ -265,55 +284,33 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
   }
 
   /**
-   * 后台保活提示：切到后台被系统清理后，重新进入会重新加载页面、播放控件也会丢失。
-   * 这里引导用户关闭电池优化，并提供小米/澎湃 OS 的自启动入口。
+   * 后台保活提示：切到后台被系统清理后，重新进入会重新加载页面、播放也会中断。
+   *
+   * 以前只提示一次，用户点「暂不」后再也不提醒；现在没配置好时每 3 天提醒一次，
+   * 配置完成（忽略电池优化 + 通知权限）后不再出现。
    */
   private fun promptKeepAlive() {
-    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M || SPConfig.isKeepAlivePrompted()) {
+    if (KeepAliveUtils.isFullyConfigured(this)) {
       return
     }
-    val powerManager = getSystemService(PowerManager::class.java) ?: return
-    if (powerManager.isIgnoringBatteryOptimizations(packageName)) {
+    if (!SPConfig.shouldPromptKeepAlive()) {
       return
     }
-    SPConfig.setKeepAlivePrompted(true)
+    SPConfig.markKeepAlivePrompted()
     MaterialAlertDialogBuilder(this)
-      .setTitle("保持后台运行")
+      .setTitle("保持后台播放")
       .setMessage(
-        "切到后台后如果被系统清理，回到 App 时页面会重新加载，底部播放控件也会消失。\n\n" +
-          "建议允许「忽略电池优化」，并在系统设置里把省电策略设为「无限制」、允许自启动。"
+        "系统清理后台后，音乐会被暂停，重新打开 App 也会重新加载。\n\n" +
+          "建议允许「忽略电池优化」、打开通知权限，并在系统设置里把省电策略设为「无限制」、允许自启动。"
       )
-      .setPositiveButton("去设置") { _, _ -> requestIgnoreBatteryOptimizations() }
-      .setNeutralButton("自启动设置") { _, _ -> openAutoStartSettings() }
+      .setPositiveButton("关闭电池优化") { _, _ ->
+        KeepAliveUtils.requestIgnoreBatteryOptimizations(this)
+      }
+      .setNeutralButton("自启动设置") { _, _ ->
+        KeepAliveUtils.openAutoStartSettings(this)
+      }
       .setNegativeButton("暂不", null)
       .show()
-  }
-
-  private fun requestIgnoreBatteryOptimizations() {
-    val intent = Intent(
-      Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS,
-      Uri.parse("package:$packageName"),
-    )
-    runCatching { startActivity(intent) }.onFailure { openAppSettings() }
-  }
-
-  /** 小米 / 澎湃 OS 的自启动管理页，非小米设备回落到应用详情 */
-  private fun openAutoStartSettings() {
-    val intent = Intent().apply {
-      component = ComponentName(
-        "com.miui.securitycenter",
-        "com.miui.permcenter.autostart.AutoStartManagementActivity",
-      )
-    }
-    runCatching { startActivity(intent) }.onFailure { openAppSettings() }
-  }
-
-  private fun openAppSettings() {
-    runCatching {
-      startActivity(
-        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.parse("package:$packageName"))
-      )
-    }
   }
 
   override fun onNewIntent(intent: Intent) {
@@ -748,8 +745,6 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
               com.google.android.material.R.attr.colorSurface
             )
           )
-          // 开启返回监听
-          onBackPressedCallback.isEnabled = true
           // 如果当前不是亮色状态栏
           if (!windowInsetsController.isAppearanceLightStatusBars) {
             // 设置亮色状态栏
@@ -761,7 +756,6 @@ class MainActivity : EngineActivity<ActivityMainBinding>(R.layout.activity_main)
         } else if (state == BottomSheetBehavior.STATE_COLLAPSED) {
           binding.bottomBar.setBackgroundColor(Color.TRANSPARENT)
           mainViewModel.changeBottomBarExpand(false)
-          onBackPressedCallback.isEnabled = false
           if (playerExpanded) {
             playerExpanded = false
             syncBottomNavVisibility()

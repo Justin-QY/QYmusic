@@ -7,6 +7,8 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
 import android.net.Uri;
 import android.util.Log;
 
@@ -51,6 +53,8 @@ import org.json.JSONObject;
 import org.litepal.LitePal;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
@@ -65,6 +69,7 @@ import com.qymusic.app.model.FavoriteModel;
 import com.qymusic.app.model.MusicModel;
 import com.qymusic.app.model.PlayInfo;
 import com.qymusic.app.ui.activity.MainActivity;
+import com.qymusic.app.utils.PlaybackStateStore;
 import com.qymusic.app.utils.PlayUtilsKt;
 import com.qymusic.app.utils.lyric.SuperIslandLyrics;
 import com.qymusic.app.utils.converter.JavaSerializationConverter;
@@ -90,6 +95,57 @@ public class MusicService extends MediaSessionService implements Player.Listener
     private boolean isFavorite = false;
 
     private MusicBroadcastReceiver musicBroadcastReceiver;
+
+    /** 播放中记录进度的间隔 */
+    private static final long SAVE_POSITION_INTERVAL_MS = 5_000L;
+
+    /** 提前结束检测：短于这个时长的音频不判断，避免误伤铃声 / 短音频 */
+    private static final long MIN_DURATION_FOR_EARLY_END_MS = 120_000L;
+
+    /** 提前结束检测需要最后一刻的播放位置，按秒跟踪 */
+    private static final long TRACK_POSITION_INTERVAL_MS = 1_000L;
+
+    private final Handler stateSaveHandler = new Handler(Looper.getMainLooper());
+
+    /** 已经自动恢复过的歌曲（source|id），同一首歌只重试一次，防止死循环 */
+    private final java.util.Set<String> truncationRecoveryDone =
+            java.util.concurrent.ConcurrentHashMap.newKeySet();
+
+    /** 最近一次观察到的播放位置，用于判断歌曲是否「没放完」 */
+    private volatile long trackedPositionMs = 0L;
+
+    /** 上一个播放项；AUTO 切歌时它就是刚刚结束的那一首 */
+    private MediaItem lastTransitionItem;
+    private int lastTransitionIndex = C.INDEX_UNSET;
+
+    /** 正在恢复上次队列：期间的播放器回调不要回写落盘，避免把恢复的进度覆盖成 0 */
+    private boolean restoringState = false;
+
+    private final Runnable trackPositionTask = new Runnable() {
+        @Override
+        public void run() {
+            if (mExoPlayer == null) {
+                return;
+            }
+            trackedPositionMs = Math.max(0L, mExoPlayer.getCurrentPosition());
+            if (mExoPlayer.isPlaying()) {
+                stateSaveHandler.postDelayed(this, TRACK_POSITION_INTERVAL_MS);
+            }
+        }
+    };
+
+    private final Runnable savePositionTask = new Runnable() {
+        @Override
+        public void run() {
+            if (mExoPlayer == null) {
+                return;
+            }
+            PlaybackStateStore.savePosition(mExoPlayer);
+            if (mExoPlayer.isPlaying()) {
+                stateSaveHandler.postDelayed(this, SAVE_POSITION_INTERVAL_MS);
+            }
+        }
+    };
 
     @SuppressLint("UnsafeOptInUsageError")
     private class MediaSessionCallback implements MediaSession.Callback {
@@ -133,6 +189,7 @@ public class MusicService extends MediaSessionService implements Player.Listener
     public void onCreate() {
         super.onCreate();
         initEXOPlayer();
+        restorePlaybackState();
 
         musicBroadcastReceiver = new MusicBroadcastReceiver();
         IntentFilter filter = new IntentFilter(IntentActions.FAVORITE);
@@ -150,8 +207,54 @@ public class MusicService extends MediaSessionService implements Player.Listener
         return mediaSession;
     }
 
+    /**
+     * 恢复上次的播放队列和进度。
+     *
+     * 只恢复队列并暂停在当前曲目，不自动播放：进程被杀后重新打开 App，
+     * 底部播放栏能看到上一首，点播放即可继续。
+     */
+    private void restorePlaybackState() {
+        if (mExoPlayer == null || mExoPlayer.getMediaItemCount() > 0) {
+            return;
+        }
+        PlaybackStateStore.Snapshot snapshot = PlaybackStateStore.load();
+        if (snapshot == null) {
+            return;
+        }
+        String bridge = SPConfig.currentBridge();
+        List<MediaItem> items = new ArrayList<>();
+        for (MusicModel model : snapshot.getItems()) {
+            if (model == null || model.getId() == 0L) {
+                continue;
+            }
+            items.add(PlayUtilsKt.toMediaItem(model, bridge));
+        }
+        if (items.isEmpty()) {
+            return;
+        }
+        int index = Math.max(0, Math.min(snapshot.getIndex(), items.size() - 1));
+        long position = Math.max(0L, snapshot.getPosition());
+        restoringState = true;
+        try {
+            mExoPlayer.setMediaItems(items, index, position);
+        } finally {
+            restoringState = false;
+        }
+        Log.i(TAG, "已恢复上次播放: " + items.size() + " 首, index=" + index
+                + ", position=" + position);
+    }
+
     @Override
     public void onMediaItemTransition(@Nullable MediaItem mediaItem, int reason) {
+        if (mExoPlayer != null && !restoringState) {
+            PlaybackStateStore.save(mExoPlayer);
+        }
+        // 自动切歌时检查上一首是否「没放完」：试听片段 / 被缓存成片段的歌曲会在这里恢复
+        if (reason == Player.MEDIA_ITEM_TRANSITION_REASON_AUTO) {
+            checkEarlyEnd(lastTransitionItem, lastTransitionIndex);
+        }
+        lastTransitionItem = mediaItem;
+        lastTransitionIndex = mExoPlayer == null ? C.INDEX_UNSET : mExoPlayer.getCurrentMediaItemIndex();
         if (mediaItem == null) {
             return;
         }
@@ -166,6 +269,125 @@ public class MusicService extends MediaSessionService implements Player.Listener
         if (model.isFavorite() != isFavorite) {
             isFavorite = model.isFavorite();
             setCustomLayout();
+        }
+    }
+
+    @Override
+    public void onIsPlayingChanged(boolean isPlaying) {
+        if (mExoPlayer == null) {
+            return;
+        }
+        // 播放 / 暂停切换时立即落盘；播放中再每 5 秒记录一次进度
+        if (!restoringState) {
+            PlaybackStateStore.save(mExoPlayer);
+        }
+        stateSaveHandler.removeCallbacks(savePositionTask);
+        stateSaveHandler.removeCallbacks(trackPositionTask);
+        if (isPlaying) {
+            stateSaveHandler.postDelayed(savePositionTask, SAVE_POSITION_INTERVAL_MS);
+            trackedPositionMs = Math.max(0L, mExoPlayer.getCurrentPosition());
+            stateSaveHandler.postDelayed(trackPositionTask, TRACK_POSITION_INTERVAL_MS);
+        }
+    }
+
+    /**
+     * 歌曲没放完就自动切下一首时的兜底。
+     *
+     * <p>常见原因：音源只返回了 30~60 秒的试听片段，或者旧版本把片段缓存成了完整音频。
+     * 这里与歌曲元数据里的时长对比，明显偏短就清掉该曲缓存、重新解析并重播一次；
+     * 同一首歌只重试一次，避免音源真的不完整时反复循环。</p>
+     */
+    private void checkEarlyEnd(@Nullable MediaItem finishedItem, int finishedIndex) {
+        if (finishedItem == null || mExoPlayer == null || finishedIndex == C.INDEX_UNSET) {
+            return;
+        }
+        MusicModel model = PlayUtilsKt.getMusicInfo(finishedItem.mediaMetadata);
+        if (model == null || model.getId() == 0L) {
+            return;
+        }
+        long durationValue = model.getDuration();
+        // 目录接口返回秒；兼容可能返回毫秒的历史数据
+        long expectedMs = durationValue > 3600L ? durationValue : durationValue * 1000L;
+        if (expectedMs < MIN_DURATION_FOR_EARLY_END_MS) {
+            return;
+        }
+        long playedMs = trackedPositionMs;
+        long endThresholdMs = expectedMs * 7L / 10L;
+        if (playedMs <= 0L || playedMs >= endThresholdMs) {
+            return;
+        }
+        if (expectedMs - playedMs < 30_000L) {
+            return;
+        }
+        String retryKey = model.getSource() + "|" + model.getId();
+        if (!truncationRecoveryDone.add(retryKey)) {
+            Log.w(TAG, "歌曲再次提前结束，已重试过 id=" + model.getId());
+            ToastKt.toast("该歌曲音源不完整，请换一首试试");
+            return;
+        }
+
+        String bridge = bridgeOf(finishedItem);
+        Log.w(TAG, "歌曲提前结束，疑似试听片段 id=" + model.getId()
+                + " played=" + playedMs + "ms expected=" + expectedMs + "ms bridge=" + bridge);
+        // 不要在播放器回调里直接改播放队列，交给消息队列，避免回调重入
+        stateSaveHandler.post(() -> recoverTruncated(model, finishedIndex, bridge));
+    }
+
+    /** 清理这首曲目的缓存 / 解析结果，并重新播放一次 */
+    private void recoverTruncated(MusicModel model, int finishedIndex, String bridge) {
+        if (mExoPlayer == null) {
+            return;
+        }
+        int count = mExoPlayer.getMediaItemCount();
+        if (count <= 0) {
+            return;
+        }
+        int target = Math.max(0, Math.min(finishedIndex, count - 1));
+        // 队列可能已经变化，确认目标位置还是这首歌再替换
+        if (!String.valueOf(model.getId()).equals(mExoPlayer.getMediaItemAt(target).mediaId)) {
+            Log.w(TAG, "队列已变化，取消提前结束恢复 id=" + model.getId());
+            return;
+        }
+        try {
+            QYMusicApplication.getSimpleCache(this)
+                    .removeResource(PlayUtilsKt.mediaCacheKey(model.getSource(),
+                            String.valueOf(model.getId()), bridge));
+            // 旧版本的缓存 key（不带音质、版本更低），可能缓存过试听片段
+            QYMusicApplication.getSimpleCache(this)
+                    .removeResource(model.getSource() + "-" + model.getId() + "-v3");
+            QYMusicApplication.getSimpleCache(this)
+                    .removeResource(model.getSource() + "-" + model.getId() + "-v2");
+        } catch (Exception e) {
+            Log.w(TAG, "清理音频缓存失败: " + e.getMessage());
+        }
+        ApiUriResolve.clearCachedUrl(model.getSource(), String.valueOf(model.getId()), bridge);
+
+        MediaItem fresh = PlayUtilsKt.toMediaItem(model, bridge);
+        mExoPlayer.replaceMediaItem(target, fresh);
+        mExoPlayer.seekTo(target, 0);
+        mExoPlayer.play();
+        ToastKt.toast("音源不完整，正在重新加载");
+    }
+
+    /** 读取播放项上的实际音质；取不到时回落到当前设置 */
+    private String bridgeOf(MediaItem item) {
+        Uri uri = item.requestMetadata.mediaUri;
+        String bridge = uri == null ? null : uri.getQueryParameter("bridge");
+        if (bridge == null || bridge.isEmpty()) {
+            bridge = SPConfig.currentBridge();
+        }
+        return bridge;
+    }
+
+    @Override
+    public void onPlaybackStateChanged(int playbackState) {
+        if (mExoPlayer == null) {
+            return;
+        }
+        // 播放结束 / 被打回 IDLE 时保存最后的进度
+        if (!restoringState
+                && (playbackState == Player.STATE_ENDED || playbackState == Player.STATE_IDLE)) {
+            PlaybackStateStore.save(mExoPlayer);
         }
     }
 
@@ -332,7 +554,20 @@ public class MusicService extends MediaSessionService implements Player.Listener
     }
 
     @Override
+    public void onTaskRemoved(@Nullable Intent rootIntent) {
+        // 从最近任务划掉时先保存队列，再走 Media3 默认逻辑
+        if (mExoPlayer != null) {
+            PlaybackStateStore.save(mExoPlayer);
+        }
+        super.onTaskRemoved(rootIntent);
+    }
+
+    @Override
     public void onDestroy() {
+        if (mExoPlayer != null) {
+            PlaybackStateStore.save(mExoPlayer);
+        }
+        stateSaveHandler.removeCallbacksAndMessages(null);
         super.onDestroy();
         SuperIslandLyrics.detach();
         destroyPlayer();
@@ -466,6 +701,11 @@ public class MusicService extends MediaSessionService implements Player.Listener
             return playInfo.getUrl().trim();
         }
 
+        /** 清除某首歌的解析地址缓存（疑似试听片段需要重新解析时调用） */
+        static void clearCachedUrl(String source, String id, String bridge) {
+            URL_CACHE.remove(source + "|" + id + "|" + bridge);
+        }
+
         /** 把 App 的音质档位映射成 ChKSz 的 level */
         private static String mapThirdPartyLevel(String bridge) {
             if (bridge == null) {
@@ -545,7 +785,8 @@ public class MusicService extends MediaSessionService implements Player.Listener
             // 否则每次 seek 都会从第 0 字节开始读取，表现为「拖动进度条后又从头播放」。
             return dataSpec.buildUpon()
                     .setUri(Uri.parse(playUrl))
-                    .setKey(source + "-" + id + "-v3") // 音源+ID 作为缓存 Key，避免不同音源同 ID 串歌
+                    // 音源 + ID + 音质作为缓存 Key：避免不同音源同 ID 串歌、不同音质复用旧缓存
+                    .setKey(PlayUtilsKt.mediaCacheKey(source, id, bridge == null ? "" : bridge))
                     .build();
         }
     }

@@ -275,13 +275,41 @@ object SPConfig {
    * 默认启动页：保存 NavModules 的稳定 key（home / cloud），默认首页。
    * 实际跳转时由 NavModules.startPage() 过滤被隐藏的模块。
    */
-  /** 是否已经提示过后台保活设置 */
-  const val KEEP_ALIVE_PROMPTED = "keep_alive_prompted"
+  /**
+   * 后台保活提示：记录上次提示的时间（毫秒，0 表示没提示过）。
+   *
+   * 以前只存布尔值，用户点了「暂不」就永远不再提示；现在改成按间隔重提，
+   * 没配置好时最多每 3 天提醒一次，配置完成后不再打扰。
+   */
+  const val KEEP_ALIVE_PROMPTED_AT = "keep_alive_prompted_at"
 
-  fun isKeepAlivePrompted(): Boolean = KEEP_ALIVE_PROMPTED.getRequired(false)
+  /** 旧版本的布尔键，仅用于兼容读取 */
+  private const val KEEP_ALIVE_PROMPTED = "keep_alive_prompted"
 
-  fun setKeepAlivePrompted(prompted: Boolean) {
-    KEEP_ALIVE_PROMPTED put prompted
+  /** 两次提示的最小间隔 */
+  private const val KEEP_ALIVE_PROMPT_INTERVAL_MS = 3L * 24 * 60 * 60 * 1000
+
+  private fun keepAlivePromptedAt(): Long {
+    val at = KEEP_ALIVE_PROMPTED_AT.getRequired(0L)
+    if (at > 0L) {
+      return at
+    }
+    // 旧版本提示过的用户，先按「刚提示过」处理，升级后不会立刻再弹
+    return if (KEEP_ALIVE_PROMPTED.getRequired(false)) System.currentTimeMillis() else 0L
+  }
+
+  fun shouldPromptKeepAlive(): Boolean {
+    val at = keepAlivePromptedAt()
+    if (at <= 0L) {
+      return true
+    }
+    val elapsed = System.currentTimeMillis() - at
+    return elapsed < 0L || elapsed > KEEP_ALIVE_PROMPT_INTERVAL_MS
+  }
+
+  fun markKeepAlivePrompted() {
+    KEEP_ALIVE_PROMPTED_AT put System.currentTimeMillis()
+    KEEP_ALIVE_PROMPTED put true
   }
 
   const val START_PAGE = "start_page"
@@ -328,6 +356,7 @@ object SPConfig {
   /**
    * 当前播放音质（默认最低的 128k）
    */
+  @JvmStatic
   fun currentBridge(): String =
     CURRENT_BRIDGE.getRequired(com.qymusic.app.enums.MusicBridge.DEFAULT.level)
 
