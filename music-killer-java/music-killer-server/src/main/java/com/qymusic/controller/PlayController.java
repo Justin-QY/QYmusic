@@ -41,17 +41,21 @@ public class PlayController {
             @Parameter(description = "歌名") @RequestParam(required = false) String name,
             @Parameter(description = "歌手") @RequestParam(required = false) String singer,
             @Parameter(description = "专辑") @RequestParam(required = false) String album,
-            @Parameter(description = "时长秒") @RequestParam(required = false) Integer duration) {
+            @Parameter(description = "时长秒") @RequestParam(required = false) Integer duration,
+            @Parameter(description = "是否使用平台原生音源，0=关闭") @RequestParam(name = "native", required = false, defaultValue = "true") boolean allowNative,
+            @Parameter(description = "是否使用落雪 LX 脚本，0=关闭") @RequestParam(name = "lx", required = false, defaultValue = "true") boolean allowLx) {
         if ("qq".equals(source)) {
             if (sourceId == null || sourceId.isBlank()) {
                 return Result.error("QQ 音乐播放需先登录 QQ 音乐");
             }
             // 1. 平台自带音源：QQ 原生 vkey（需要登录 Cookie）
             String url = "";
-            try {
-                url = qqMusicClient.vkey(sourceId, qqCookie, bridge);
-            } catch (Exception e) {
-                log.warn("QQ 原生 vkey 解析异常 songmid={} : {}", sourceId, e.getMessage());
+            if (allowNative) {
+                try {
+                    url = qqMusicClient.vkey(sourceId, qqCookie, bridge);
+                } catch (Exception e) {
+                    log.warn("QQ 原生 vkey 解析异常 songmid={} : {}", sourceId, e.getMessage());
+                }
             }
             if (url != null && !url.isBlank()) {
                 PlayInfo qqInfo = new PlayInfo()
@@ -67,7 +71,7 @@ public class PlayController {
             // 2. vkey 为空（未登录 / 付费 / 版权）：进入洛雪音源脚本 → 第三方聚合的串行兜底
             log.info("QQ 原生 vkey 未取到地址 songmid={}，进入兜底链路", sourceId);
             PlayInfo fallback = playUrlResolver.resolve(id, bridge, "qq", sourceId, name, singer,
-                    album, duration, null);
+                    album, duration, null, allowNative, allowLx);
             if (fallback == null || fallback.getUrl() == null || fallback.getUrl().isBlank()) {
                 return Result.error("QQ 音乐播放需先登录 QQ 音乐（付费/版权歌曲）");
             }
@@ -75,7 +79,7 @@ public class PlayController {
         }
         String kgCookieValue = kgCookie == null || kgCookie.isBlank() ? cookie : kgCookie;
         PlayInfo info = playUrlResolver.resolve(id, bridge, source, sourceId, name, singer, album,
-                duration, kgCookieValue);
+                duration, kgCookieValue, allowNative, allowLx);
         if (info == null || info.getUrl() == null || info.getUrl().isBlank()) {
             if ("kg".equals(source)) {
                 return Result.error("该歌曲暂无可用音源（付费/版权限制，或需要登录酷狗概念版）");

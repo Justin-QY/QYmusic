@@ -38,7 +38,7 @@ public class LxScriptRegistry {
     private static final Pattern META = Pattern.compile("@(name|version|author)\\s+(.+)");
 
     /** 内置脚本顺序：优先级从高到低 */
-    private static final List<String> DEFAULT_ORDER = List.of("hyw", "stellarwave", "fish", "quandou", "nianxin");
+    private static final List<String> DEFAULT_ORDER = List.of("stellarwave", "quandou");
 
     private final Map<String, LxScript> scripts = new LinkedHashMap<>();
 

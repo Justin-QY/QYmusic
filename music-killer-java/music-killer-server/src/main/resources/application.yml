@@ -90,8 +90,7 @@ lx:
   timeout-ms: 7000 # 鍗曚釜鑴氭湰瑙ｆ瀽瓒呮椂锛堟绉掞級
   total-timeout-ms: 12000 # 涓€娆¤В鏋愰噷鎵€鏈夎剼鏈殑鎬婚绠楋紙姣锛?
   scripts-dir: /opt/music-killer/lx # 澶栭儴鑴氭湰鐩綍锛屾斁鍚屽悕 .js 鍙儹鏇挎崲鍐呯疆鑴氭湰
-  order: hyw,stellarwave,fish,quandou,nianxin # 瑙ｆ瀽浼樺厛绾?
-  disabled: nianxin # 涓嶅弬涓庤В鏋愮殑鑴氭湰 id锛岄€楀彿鍒嗛殧
+  order: xinghai,stellarwave,quandou # 瑙ｆ瀽浼樺厛绾?
 
 # App 鍦ㄧ嚎鏇存柊
 app:

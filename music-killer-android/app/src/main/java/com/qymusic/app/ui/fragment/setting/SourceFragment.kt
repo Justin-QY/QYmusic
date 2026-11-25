@@ -39,6 +39,12 @@ class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.f
     private var loadingScripts = false
     private var syncingSwitch = false
 
+    private companion object {
+        const val SOURCE_OFFICIAL = "official"
+        const val SOURCE_LX = "lx"
+        const val SOURCE_THIRD = "third"
+    }
+
     private var serverScriptCount = 0
     private var localScriptCount = 0
     private var serverExpanded = false
@@ -58,7 +64,7 @@ class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.f
         binding.btnToggleServer.setOnClickListener { toggleServerScripts() }
         binding.btnImportLocal.setOnClickListener { showImportChooser() }
 
-        binding.switchThirdParty.setOnCheckedChangeListener { _, checked ->
+        binding.switchThirdParty.setOnCheckedChangeListener { view, checked ->
             if (syncingSwitch) {
                 return@setOnCheckedChangeListener
             }
@@ -69,9 +75,41 @@ class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.f
                     SPConfig.setThirdPartyEnabled(true)
                 }
             } else {
+                if (!ensureAnotherSource(SOURCE_THIRD)) {
+                    syncingSwitch = true
+                    view.isChecked = true
+                    syncingSwitch = false
+                    return@setOnCheckedChangeListener
+                }
                 SPConfig.setThirdPartyEnabled(false)
             }
             updateThirdPartyStatus()
+        }
+
+        binding.switchOfficialSource.setOnCheckedChangeListener { view, checked ->
+            if (syncingSwitch) {
+                return@setOnCheckedChangeListener
+            }
+            if (!checked && !ensureAnotherSource(SOURCE_OFFICIAL)) {
+                syncingSwitch = true
+                view.isChecked = true
+                syncingSwitch = false
+                return@setOnCheckedChangeListener
+            }
+            SPConfig.setOfficialSourceEnabled(checked)
+        }
+
+        binding.switchLxSource.setOnCheckedChangeListener { view, checked ->
+            if (syncingSwitch) {
+                return@setOnCheckedChangeListener
+            }
+            if (!checked && !ensureAnotherSource(SOURCE_LX)) {
+                syncingSwitch = true
+                view.isChecked = true
+                syncingSwitch = false
+                return@setOnCheckedChangeListener
+            }
+            SPConfig.setLxSourceEnabled(checked)
         }
 
         applyServerExpanded()
@@ -122,14 +160,18 @@ class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.f
 
     private fun updateThirdPartyStatus() {
         val hasKey = SPConfig.thirdPartyKey().isNotBlank()
+        val builtin = hasKey && SPConfig.customThirdPartyKey().isBlank()
         val enabled = SPConfig.isThirdPartyEnabled() && hasKey
         syncingSwitch = true
         binding.switchThirdParty.isChecked = enabled
+        binding.switchOfficialSource.isChecked = SPConfig.isOfficialSourceEnabled()
+        binding.switchLxSource.isChecked = SPConfig.isLxSourceEnabled()
         syncingSwitch = false
         binding.tvChkszStatus.text = when {
             !hasKey -> "未配置"
-            enabled -> "已启用"
-            else -> "已保存"
+            !enabled -> if (builtin) "已内置" else "已保存"
+            builtin -> "已启用（内置）"
+            else -> "已启用"
         }
         if (!hasKey && SPConfig.isThirdPartyEnabled()) {
             SPConfig.setThirdPartyEnabled(false)
@@ -140,9 +182,9 @@ class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.f
     private fun showKeyDialog(enableAfterSave: Boolean = false) {
         val density = resources.displayMetrics.density
         val input = android.widget.EditText(requireContext()).apply {
-            hint = "ChKSz API Key"
+            hint = "留空则使用内置密钥"
             isSingleLine = true
-            setText(SPConfig.thirdPartyKey())
+            setText(SPConfig.customThirdPartyKey())
             setSelection(text.length)
         }
         val container = android.widget.FrameLayout(requireContext()).apply {
@@ -158,20 +200,22 @@ class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.f
         }
         com.google.android.material.dialog.MaterialAlertDialogBuilder(requireContext())
             .setTitle("ChKSz API 密钥")
-            .setMessage("请填写你在 api.chksz.com 登录后获取的个人 apikey。密钥仅保存在本机，不会上传。")
+            .setMessage("App 已内置密钥，通常无需填写。如需使用你自己的 ChKSz 密钥，可在此填写（仅保存在本机，不会上传）；留空则恢复内置密钥。")
             .setView(container)
             .setPositiveButton("保存") { _, _ ->
                 val key = input.text.toString().trim()
-                if (key.isEmpty()) {
-                    toast("密钥不能为空")
-                    return@setPositiveButton
-                }
                 SPConfig.setThirdPartyKey(key)
                 if (enableAfterSave) {
                     SPConfig.setThirdPartyEnabled(true)
                 }
                 updateThirdPartyStatus()
-                toast(if (SPConfig.isThirdPartyEnabled()) "第三方音源已启用" else "密钥已保存")
+                toast(
+                    when {
+                        key.isEmpty() -> "已恢复内置密钥"
+                        SPConfig.isThirdPartyEnabled() -> "第三方音源已启用"
+                        else -> "密钥已保存"
+                    }
+                )
             }
             .setNegativeButton("取消", null)
             .show()
@@ -196,6 +240,30 @@ class SourceFragment : BaseMusicAppbarFragment<FragmentSourceBinding>(R.layout.f
             }.getOrElse { false }
             toast(if (ok) "连接成功，密钥可用" else "连接失败，请检查密钥或网络")
         }
+    }
+
+    // ------------------------------------------------------------------ 音源开关
+
+    /**
+     * 三个播放来源至少要保留一个：关闭某个来源前，检查其余来源是否还有可用的。
+     * 都不可用时提示并回滚开关。
+     */
+    private fun ensureAnotherSource(exclude: String): Boolean {
+        val others = listOf(SOURCE_OFFICIAL, SOURCE_LX, SOURCE_THIRD)
+            .filter { it != exclude }
+            .any { isSourceEnabled(it) }
+        if (!others) {
+            toast("至少保留一个音源")
+        }
+        return others
+    }
+
+    private fun isSourceEnabled(key: String): Boolean = when (key) {
+        SOURCE_OFFICIAL -> SPConfig.isOfficialSourceEnabled()
+        SOURCE_LX -> SPConfig.isLxSourceEnabled()
+        // 第三方启用但没有密钥时视为不可用
+        SOURCE_THIRD -> SPConfig.isThirdPartyEnabled() && SPConfig.thirdPartyKey().isNotBlank()
+        else -> false
     }
 
     // ------------------------------------------------------------------ 服务器脚本

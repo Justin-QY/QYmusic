@@ -20,6 +20,16 @@ android {
   fun prop(key: String, fallback: String): String =
     (keystoreProps.getProperty(key) ?: System.getenv(key) ?: fallback)
 
+  // ChKSz API Key：从本机 local.properties 读取（不入库），也可用环境变量 CHKSZ_API_KEY 覆盖
+  val localProps = Properties().apply {
+    val f = rootProject.file("local.properties")
+    if (f.exists()) {
+      f.inputStream().use { load(it) }
+    }
+  }
+  val chkszApiKey = localProps.getProperty("chksz.apikey")
+    ?: System.getenv("CHKSZ_API_KEY") ?: ""
+
   signingConfigs {
     getByName("debug") {
       storeFile = file(prop("storeFile", "C:/OldData/mk/android/mk.jks"))
@@ -45,11 +55,18 @@ android {
     applicationId = "com.qymusic.app"
     minSdk = 24
     targetSdk = 36
-    versionCode = 78
-    versionName = "1.0.33"
+    versionCode = 79
+    versionName = "1.0.34"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     signingConfig = signingConfigs.getByName("release")
+
+    // 第三方音源内置密钥（见 SPConfig.thirdPartyKey）
+    buildConfigField(
+      "String",
+      "CHKSZ_API_KEY",
+      "\"${chkszApiKey.replace("\\", "\\\\").replace("\"", "\\\"")}\""
+    )
   }
 
   buildTypes {

@@ -1,5 +1,6 @@
 package com.qymusic.app.config
 
+import com.qymusic.app.BuildConfig
 import com.qymusic.app.utils.SpUtils.getRequired
 import com.qymusic.app.utils.SpUtils.put
 
@@ -121,14 +122,39 @@ object SPConfig {
   }
 
   /**
-   * 第三方音源（默认关闭）
+   * 播放音源顺序：官方 → 落雪脚本 → 第三方 API。
+   * 三个来源各自独立开关，第三方默认关闭。
    */
+  const val OFFICIAL_SOURCE_ENABLED = "official_source_enabled"
+  const val LX_SOURCE_ENABLED = "lx_source_enabled"
   const val THIRD_PARTY_ENABLED = "third_party_enabled"
   const val THIRD_PARTY_KEY = "third_party_key"
 
   /** 目前唯一接入的第三方音源：ChKSz API */
   const val THIRD_PARTY_BASE = "https://api.chksz.com"
 
+  /** 内置 ChKSz 密钥：构建时从本机 local.properties 注入，不入库 */
+  private val BUILTIN_THIRD_PARTY_KEY: String = BuildConfig.CHKSZ_API_KEY
+
+  /** 官方原生音源，默认开启 */
+  @JvmStatic
+  fun isOfficialSourceEnabled(): Boolean = OFFICIAL_SOURCE_ENABLED.getRequired(true)
+
+  @JvmStatic
+  fun setOfficialSourceEnabled(enabled: Boolean) {
+    OFFICIAL_SOURCE_ENABLED put enabled
+  }
+
+  /** 落雪 LX 脚本，默认开启 */
+  @JvmStatic
+  fun isLxSourceEnabled(): Boolean = LX_SOURCE_ENABLED.getRequired(true)
+
+  @JvmStatic
+  fun setLxSourceEnabled(enabled: Boolean) {
+    LX_SOURCE_ENABLED put enabled
+  }
+
+  /** 第三方 API，默认关闭 */
   @JvmStatic
   fun isThirdPartyEnabled(): Boolean = THIRD_PARTY_ENABLED.getRequired(false)
 
@@ -138,8 +164,16 @@ object SPConfig {
   }
 
   @JvmStatic
-  fun thirdPartyKey(): String = THIRD_PARTY_KEY.getRequired("")
+  fun thirdPartyKey(): String {
+    val saved = THIRD_PARTY_KEY.getRequired("")
+    return if (saved.isBlank()) BUILTIN_THIRD_PARTY_KEY else saved
+  }
 
+  /** 用户自己填写的密钥；为空时使用内置密钥 */
+  @JvmStatic
+  fun customThirdPartyKey(): String = THIRD_PARTY_KEY.getRequired("")
+
+  @JvmStatic
   fun setThirdPartyKey(key: String) {
     THIRD_PARTY_KEY put key
   }

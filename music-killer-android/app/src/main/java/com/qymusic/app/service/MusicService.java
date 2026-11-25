@@ -366,7 +366,7 @@ public class MusicService extends MediaSessionService implements Player.Listener
          * 第三方音源（ChKSz API）解析。
          *
          * <p>只在设置页开启并配置了 apikey 时生效；目前 ChKSz 只提供网易云 / QQ / 酷狗，
-         * 这里仅对网易云歌曲生效。任何异常都返回 null，交给后面的落雪脚本兜底。</p>
+         * 这里仅对网易云歌曲生效。任何异常都返回 null，由调用方给出无音源提示。</p>
          */
         private static String resolveFromThirdParty(String source, String id, String bridge) {
             if (!"wy".equals(source)) {
@@ -410,6 +410,60 @@ public class MusicService extends MediaSessionService implements Player.Listener
                 Log.w(TAG, "第三方音源解析失败: " + e.getMessage());
                 return null;
             }
+        }
+
+        /**
+         * 请求服务端解析播放地址。
+         *
+         * <p>服务端没有可用音源时返回 null，由调用方决定是否用第三方音源兜底。</p>
+         */
+        private static String requestServerPlayUrl(String id, String bridge, String source,
+                                                   String sourceId, String qqCookie, String kgCookie,
+                                                   String name, String singer, String album,
+                                                   String duration, boolean officialEnabled,
+                                                   boolean lxEnabled) {
+            UrlRequest urlRequest = Net.get(Api.PLAY_INFO);
+            urlRequest.setConverter(new JavaSerializationConverter());
+            urlRequest.addQuery("id", id, false);
+            urlRequest.addQuery("bridge", bridge, false);
+            urlRequest.addQuery("source", source, false);
+            // 播放音源顺序：官方 → 落雪 → 第三方，关闭的来源让服务端跳过
+            if (!officialEnabled) {
+                urlRequest.addQuery("native", "0", false);
+            }
+            if (!lxEnabled) {
+                urlRequest.addQuery("lx", "0", false);
+            }
+            if (sourceId != null && !sourceId.isEmpty()) {
+                urlRequest.addQuery("sourceId", sourceId, false);
+            }
+            if (qqCookie != null && !qqCookie.isEmpty()) {
+                urlRequest.addQuery("qqCookie", qqCookie, false);
+            }
+            if (kgCookie != null && !kgCookie.isEmpty()) {
+                urlRequest.addQuery("kgCookie", kgCookie, false);
+            }
+            if (name != null && !name.isEmpty()) {
+                urlRequest.addQuery("name", name, false);
+            }
+            if (singer != null && !singer.isEmpty()) {
+                urlRequest.addQuery("singer", singer, false);
+            }
+            if (album != null && !album.isEmpty()) {
+                urlRequest.addQuery("album", album, false);
+            }
+            if (duration != null && !duration.isEmpty()) {
+                urlRequest.addQuery("duration", duration, false);
+            }
+            PlayInfo playInfo = urlRequest.execute(PlayInfo.class);
+
+            Log.i(TAG, "playInfo: " + playInfo);
+
+            if (playInfo == null || playInfo.getUrl() == null
+                    || playInfo.getUrl().trim().isEmpty()) {
+                return null;
+            }
+            return playInfo.getUrl().trim();
         }
 
         /** 把 App 的音质档位映射成 ChKSz 的 level */
@@ -458,45 +512,27 @@ public class MusicService extends MediaSessionService implements Player.Listener
             }
 
             if (playUrl == null) {
-                // 第三方音源（ChKSz API）优先：仅对网易云歌曲生效，失败自动回落
-                playUrl = resolveFromThirdParty(source, id, bridge);
+                // 顺序固定：官方 → 落雪 → 第三方 API，三个来源各自可开关
+                boolean officialEnabled = SPConfig.isOfficialSourceEnabled();
+                boolean lxEnabled = SPConfig.isLxSourceEnabled();
+                boolean thirdPartyEnabled = SPConfig.isThirdPartyEnabled();
+
+                if (officialEnabled || lxEnabled) {
+                    playUrl = requestServerPlayUrl(id, bridge, source, sourceId, qqCookie,
+                            kgCookie, name, singer, album, duration, officialEnabled, lxEnabled);
+                }
+
+                // 第三方音源（ChKSz API）仅对网易云歌曲生效
+                if (playUrl == null && thirdPartyEnabled) {
+                    playUrl = resolveFromThirdParty(source, id, bridge);
+                }
 
                 if (playUrl == null) {
-                    UrlRequest urlRequest = Net.get(Api.PLAY_INFO);
-                    urlRequest.setConverter(new JavaSerializationConverter());
-                    urlRequest.addQuery("id", id, false);
-                    urlRequest.addQuery("bridge", bridge, false);
-                    urlRequest.addQuery("source", source, false);
-                    if (sourceId != null && !sourceId.isEmpty()) {
-                        urlRequest.addQuery("sourceId", sourceId, false);
+                    if (!officialEnabled && !lxEnabled && !thirdPartyEnabled) {
+                        throw new IOException("请至少在播放音源设置里启用一个音源");
                     }
-                    if (qqCookie != null && !qqCookie.isEmpty()) {
-                        urlRequest.addQuery("qqCookie", qqCookie, false);
-                    }
-                    if (kgCookie != null && !kgCookie.isEmpty()) {
-                        urlRequest.addQuery("kgCookie", kgCookie, false);
-                    }
-                    if (name != null && !name.isEmpty()) {
-                        urlRequest.addQuery("name", name, false);
-                    }
-                    if (singer != null && !singer.isEmpty()) {
-                        urlRequest.addQuery("singer", singer, false);
-                    }
-                    if (album != null && !album.isEmpty()) {
-                        urlRequest.addQuery("album", album, false);
-                    }
-                    if (duration != null && !duration.isEmpty()) {
-                        urlRequest.addQuery("duration", duration, false);
-                    }
-                    PlayInfo playInfo = urlRequest.execute(PlayInfo.class);
-
-                    Log.i(TAG, "playInfo: " + playInfo);
-
-                    if (playInfo == null || playInfo.getUrl() == null || playInfo.getUrl().trim().isEmpty()) {
-                        // 服务端解析不到可用音源时给出明确提示，而不是播放错误的音频
-                        throw new IOException("该歌曲暂无可用音源，请换一首试试");
-                    }
-                    playUrl = playInfo.getUrl().trim();
+                    // 服务端解析不到可用音源时给出明确提示，而不是播放错误的音频
+                    throw new IOException("该歌曲暂无可用音源，请换一首试试");
                 }
 
                 if (URL_CACHE.size() > MAX_URL_CACHE) {

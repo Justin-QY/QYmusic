@@ -141,6 +141,22 @@ public class PlayUrlResolver {
     public PlayInfo resolve(String id, String bridge, String source, String sourceId,
                             String name, String singer, String album, Integer duration,
                             String kgCookie) {
+        return resolve(id, bridge, source, sourceId, name, singer, album, duration, kgCookie,
+                true, true);
+    }
+
+    /**
+     * 解析歌曲播放地址（客户端可关闭部分来源）。
+     *
+     * <p>顺序固定为：官方原生 → 落雪脚本 → 第三方聚合。客户端关闭某个来源时传 false，
+     * 该级直接跳过（缓存也按开关区分，避免关闭后仍命中旧来源的结果）。</p>
+     *
+     * @param allowNative 是否使用平台原生音源
+     * @param allowLx     是否使用落雪 LX 脚本
+     */
+    public PlayInfo resolve(String id, String bridge, String source, String sourceId,
+                            String name, String singer, String album, Integer duration,
+                            String kgCookie, boolean allowNative, boolean allowLx) {
         String src = (source == null || source.isBlank()) ? "wy" : source.trim().toLowerCase();
         if (!"kg".equals(src) && (id == null || id.isBlank())) {
             return null;
@@ -150,10 +166,10 @@ public class PlayUrlResolver {
         if (platformId.isBlank()) {
             return null;
         }
-        // 缓存 key 与原实现保持一致：酷狗用 hash，其它平台用 id
-        String cacheKey = "kg".equals(src)
-                ? "kg|" + platformId + "|" + bridge
-                : src + "|" + id + "|" + bridge;
+        // 缓存 key 与原实现保持一致：酷狗用 hash，其它平台用 id；末尾带上来源开关
+        String flags = (allowNative ? "N1" : "N0") + (allowLx ? "L1" : "L0");
+        String cacheKey = ("kg".equals(src) ? "kg|" + platformId : src + "|" + id)
+                + "|" + bridge + "|" + flags;
         CacheEntry cached = cache.get(cacheKey);
         if (cached != null && cached.expireAt() > System.currentTimeMillis()) {
             return cached.info();
@@ -173,7 +189,8 @@ public class PlayUrlResolver {
         PlayInfo info = null;
         try {
             info = resolveByChain(src, platformId,
-                    id == null || id.isBlank() ? platformId : id, bridge, song, kgCookie);
+                    id == null || id.isBlank() ? platformId : id, bridge, song, kgCookie,
+                    allowNative, allowLx);
         } catch (Exception e) {
             log.warn("播放地址解析失败 source={} id={} bridge={} : {}", src, id, bridge,
                     e.getMessage());
@@ -208,14 +225,20 @@ public class PlayUrlResolver {
      * @param cacheId    用于回填 {@link PlayInfo#getMusicId()} 的平台歌曲 id
      */
     private PlayInfo resolveByChain(String source, String platformId, String cacheId,
-                                    String bridge, SongInfo song, String kgCookie) {
+                                    String bridge, SongInfo song, String kgCookie,
+                                    boolean allowNative, boolean allowLx) {
         long deadline = System.currentTimeMillis() + TOTAL_BUDGET_MS;
         Long musicId = parseLong(cacheId);
 
-        // 1. 平台自带音源
-        PlayInfo info = resolveFromPlatform(source, platformId, bridge, kgCookie, deadline);
-        if (isUsable(info)) {
-            return info;
+        // 1. 平台自带音源（客户端可关闭）
+        PlayInfo info = null;
+        if (allowNative) {
+            info = resolveFromPlatform(source, platformId, bridge, kgCookie, deadline);
+            if (isUsable(info)) {
+                return info;
+            }
+        } else {
+            log.info("客户端已关闭官方音源，跳过原生 stage source={} id={}", source, cacheId);
         }
 
         if (song.name().isBlank()) {
@@ -223,18 +246,22 @@ public class PlayUrlResolver {
             return null;
         }
 
-        // 2. 洛雪音源脚本：按音质逐级降级，每级单独限时
-        try {
-            long lxDeadline = Math.min(deadline - FALLBACK_RESERVE_MS,
-                    System.currentTimeMillis() + LX_BUDGET_MS);
-            info = resolveFromLxScriptDowngrade(source, platformId, bridge, song, musicId,
-                    lxDeadline);
-            if (isUsable(info)) {
-                return info;
+        // 2. 洛雪音源脚本：按音质逐级降级，每级单独限时（客户端可关闭）
+        if (allowLx) {
+            try {
+                long lxDeadline = Math.min(deadline - FALLBACK_RESERVE_MS,
+                        System.currentTimeMillis() + LX_BUDGET_MS);
+                info = resolveFromLxScriptDowngrade(source, platformId, bridge, song, musicId,
+                        lxDeadline);
+                if (isUsable(info)) {
+                    return info;
+                }
+                log.info("音源脚本未命中，进入第三方兜底 source={} id={}", source, cacheId);
+            } catch (Exception e) {
+                log.warn("音源脚本解析异常 source={} id={} : {}", source, cacheId, e.getMessage());
             }
-            log.info("音源脚本未命中，进入第三方兜底 source={} id={}", source, cacheId);
-        } catch (Exception e) {
-            log.warn("音源脚本解析异常 source={} id={} : {}", source, cacheId, e.getMessage());
+        } else {
+            log.info("客户端已关闭落雪脚本，跳过 LX stage source={} id={}", source, cacheId);
         }
 
         // 3. 第三方聚合接口
