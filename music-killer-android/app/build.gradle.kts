@@ -55,8 +55,8 @@ android {
     applicationId = "com.qymusic.app"
     minSdk = 24
     targetSdk = 36
-    versionCode = 81
-    versionName = "1.0.36"
+    versionCode = 82
+    versionName = "1.0.37"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     signingConfig = signingConfigs.getByName("release")

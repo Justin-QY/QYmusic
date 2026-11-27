@@ -21,7 +21,7 @@ class ArtistInfoFragment : BaseMusicNavFragment<FragmentArtistInfoBinding>(R.lay
 
     binding.vp.adapter = FragmentAdapter(listOf(ArtistMusicFragment()))
     TabLayoutMediator(binding.tab.tabLayout, binding.vp) { tab, position ->
-      tab.text = "单曲(${args.artist.musicNum})"
+      tab.text = "单曲"
     }.attach()
 
     var isExpanded = true
